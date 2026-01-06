@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/MobileIMSDK4jDemo_tcp/MobileIMSDK4jDemo_tcp.iml" filepath="$PROJECT_DIR$/MobileIMSDK4jDemo_tcp/MobileIMSDK4jDemo_tcp.iml" />
+      <module fileurl="file://$PROJECT_DIR$/MobileIMSDK4j_tcp_Open/MobileIMSDK4j_tcp_Open.iml" filepath="$PROJECT_DIR$/MobileIMSDK4j_tcp_Open/MobileIMSDK4j_tcp_Open.iml" />
+      <module fileurl="file://$PROJECT_DIR$/MobileIMSDKServerDemo2/MobileIMSDKServerDemo2.iml" filepath="$PROJECT_DIR$/MobileIMSDKServerDemo2/MobileIMSDKServerDemo2.iml" />
+      <module fileurl="file://$PROJECT_DIR$/MobileIMSDKServer_Open/MobileIMSDKServer_Open.iml" filepath="$PROJECT_DIR$/MobileIMSDKServer_Open/MobileIMSDKServer_Open.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/TeleMsg.iml" filepath="$PROJECT_DIR$/.idea/TeleMsg.iml" />
+    </modules>
+  </component>
+</project>
