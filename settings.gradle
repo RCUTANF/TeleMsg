@@ -1,0 +1,6 @@
+rootProject.name = 'TeleMsg'
+
+include 'MobileIMSDKServer_Open'
+include 'MobileIMSDK4j_tcp_Open'
+include 'MobileIMSDKServerDemo2'
+include 'MobileIMSDK4jDemo_tcp'

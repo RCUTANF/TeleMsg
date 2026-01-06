@@ -1,0 +1,19 @@
+plugins {
+    id 'application'
+}
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+application {
+    mainClass = 'net.x52im.mobileimsdk.server.demo.ServerLauncherImpl'
+}
+
+dependencies {
+    implementation project(':MobileIMSDKServer_Open')
+    implementation "com.rabbitmq:amqp-client:$amqpClientVersion"
+    implementation fileTree(dir: 'lib', include: ['MobileIMSDKServer.jar'])
+}

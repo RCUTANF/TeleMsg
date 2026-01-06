@@ -1,0 +1,30 @@
+plugins {
+    id 'application'
+}
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+        resources {
+            srcDirs = ['src']
+            exclude '**/*.java'
+        }
+    }
+}
+application {
+    mainClass = 'net.x52im.mobileimsdk.java.demo.Launch'
+}
+
+dependencies {
+    implementation project(':MobileIMSDK4j_tcp_Open')
+    implementation project(':MobileIMSDKServer_Open')
+
+    // UI相关依赖
+    implementation fileTree(dir: 'lib', include: [
+        'EPC_*.jar',
+        'beautyeye_lnf.jar',
+        'ninepatch4j.jar',
+        'swing-worker-*.jar'
+    ])
+}

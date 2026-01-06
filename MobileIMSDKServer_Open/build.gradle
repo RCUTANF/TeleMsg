@@ -1,0 +1,16 @@
+plugins {
+    id 'java-library'
+}
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+dependencies {
+    implementation "com.rabbitmq:amqp-client:$amqpClientVersion"
+
+    // 本地JAR (如果需要)
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+}

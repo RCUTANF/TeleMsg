@@ -1,0 +1,17 @@
+plugins {
+    id 'java-library'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+dependencies {
+    implementation project(':MobileIMSDKServer_Open')
+
+    // Swing相关 (客户端UI)
+    implementation fileTree(dir: 'lib', include: ['swing-worker-*.jar', 'MobileIMSDKServer_META.jar'])
+}

@@ -1,1 +1,7 @@
 /out/
+/build/
+/MobileIMSDK4j_tcp_Open/build/
+/MobileIMSDK4jDemo_tcp/build/
+/MobileIMSDKServer_Open/build/
+/MobileIMSDKServerDemo2/build/
+/.gradle/

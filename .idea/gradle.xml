@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/MobileIMSDK4jDemo_tcp" />
+            <option value="$PROJECT_DIR$/MobileIMSDK4j_tcp_Open" />
+            <option value="$PROJECT_DIR$/MobileIMSDKServerDemo2" />
+            <option value="$PROJECT_DIR$/MobileIMSDKServer_Open" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>
