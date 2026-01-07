@@ -44,7 +44,7 @@ public class ServerEventListenerImpl implements ServerEventListener
 	 * 注意：本回调在一种特殊情况下——即用户实际未退出登陆但再次发起来登陆包时，本回调是不会被调用的！
 	 * <p>
 	 * 根据MobileIMSDK的算法实现，本方法中用户验证通过（即方法返回值=0时）后
-	 * ，将立即调用回调方法 {@link #onUserLoginSucess(int, String, IoSession)}。
+	 * ，将立即调用回调方法 {@link #onUserLoginSucess(String, String, Channel)}。
 	 * 否则会将验证结果（本方法返回值错误码通过客户端的 ChatBaseEvent.onLoginResponse(int userId, int errorCode)
 	 * 方法进行回调）通知客户端）。
 	 * 
