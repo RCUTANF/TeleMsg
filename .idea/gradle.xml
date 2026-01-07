@@ -8,10 +8,10 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/MobileIMSDK4jDemo_tcp" />
-            <option value="$PROJECT_DIR$/MobileIMSDK4j_tcp_Open" />
-            <option value="$PROJECT_DIR$/MobileIMSDKServerDemo2" />
-            <option value="$PROJECT_DIR$/MobileIMSDKServer_Open" />
+            <option value="$PROJECT_DIR$/Client" />
+            <option value="$PROJECT_DIR$/Client_SDK" />
+            <option value="$PROJECT_DIR$/Server" />
+            <option value="$PROJECT_DIR$/Server_SDK" />
           </set>
         </option>
       </GradleProjectSettings>

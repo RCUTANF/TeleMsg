@@ -13,7 +13,7 @@ application {
 }
 
 dependencies {
-    implementation project(':MobileIMSDKServer_Open')
+    implementation project(':Server_SDK')
     implementation "com.rabbitmq:amqp-client:$amqpClientVersion"
     implementation fileTree(dir: 'lib', include: ['MobileIMSDKServer.jar'])
 }

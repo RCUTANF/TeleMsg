@@ -17,8 +17,8 @@ application {
 }
 
 dependencies {
-    implementation project(':MobileIMSDK4j_tcp_Open')
-    implementation project(':MobileIMSDKServer_Open')
+    implementation project(':Client_SDK')
+    implementation project(':Server_SDK')
 
     // UI相关依赖
     implementation fileTree(dir: 'lib', include: [
