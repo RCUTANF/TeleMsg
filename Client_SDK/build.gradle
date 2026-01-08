@@ -13,5 +13,5 @@ dependencies {
     implementation project(':Server_SDK')
 
     // Swing相关 (客户端UI)
-    implementation fileTree(dir: 'lib', include: ['swing-worker-*.jar', 'MobileIMSDKServer_META.jar'])
+    api fileTree(dir: 'lib', include: ['swing-worker-*.jar', 'MobileIMSDKServer_META.jar'])
 }

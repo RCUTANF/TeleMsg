@@ -25,6 +25,6 @@ dependencies {
         'EPC_*.jar',
         'beautyeye_lnf.jar',
         'ninepatch4j.jar',
-        'swing-worker-*.jar'
+        //'swing-worker-*.jar'
     ])
 }
