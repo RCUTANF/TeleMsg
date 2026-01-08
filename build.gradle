@@ -6,6 +6,11 @@ allprojects {
     repositories {
         mavenCentral()
     }
+    tasks.withType(JavaCompile).tap {
+        configureEach {
+            options.encoding = 'UTF-8'
+        }
+    }
 }
 
 subprojects {
