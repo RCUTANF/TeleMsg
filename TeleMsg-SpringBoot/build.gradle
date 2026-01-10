@@ -32,8 +32,9 @@ configurations {
         exclude group: 'ch.qos.logback', module: 'logback-classic'
         exclude group: 'ch.qos.logback', module: 'logback-core'
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-        // 排除旧版本的log4j-slf4j实现，使用新版本
-        exclude group: 'org.apache.logging.log4j', module: 'log4j-slf4j-impl'
+        exclude group: 'org.slf4j', module: 'slf4j-simple'
+        exclude group: 'org.slf4j', module: 'slf4j-jdk14'
+        exclude group: 'org.slf4j', module: 'slf4j-nop'
     }
 }
 
@@ -45,14 +46,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
-    //implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // Use Log4j2 instead of Logback to maintain compatibility with MobileIMSDK
     implementation 'org.springframework.boot:spring-boot-starter-log4j2'
 
     // SLF4J bridge for Log4j2 (fixes SLF4J binding issue)
-    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl'
+    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.21.1'
+    implementation 'org.slf4j:slf4j-api:2.0.9'
 
     // Database
     implementation 'mysql:mysql-connector-java:8.0.33'
