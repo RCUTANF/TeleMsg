@@ -20,7 +20,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     MongoDataAutoConfiguration.class
 })
 @EnableJpaRepositories(basePackages = "com.telemsg.server.repository")
-@EnableCaching
 @EnableAsync
 @EnableScheduling
 public class TeleMsgServerApplication {
