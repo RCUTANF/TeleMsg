@@ -1,0 +1,320 @@
+plugins {
+    id 'org.springframework.boot' version '3.2.1'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'java'
+}
+
+group = 'com.telemsg'
+version = '1.0.0'
+sourceCompatibility = '21'
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    nettyVersion = '4.1.100.Final'
+    gsonVersion = '2.10.1'
+    mybatisPlusVersion = '3.5.5'
+    jjwtVersion = '0.12.3'
+}
+
+configurations {
+    all {
+        // 全局排除冲突的日志依赖
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+        exclude group: 'ch.qos.logback', module: 'logback-classic'
+        exclude group: 'ch.qos.logback', module: 'logback-core'
+        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        // 排除旧版本的log4j-slf4j实现，使用新版本
+        exclude group: 'org.apache.logging.log4j', module: 'log4j-slf4j-impl'
+    }
+}
+
+dependencies {
+    // Spring Boot Starters - logging conflicts are handled globally above
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Use Log4j2 instead of Logback to maintain compatibility with MobileIMSDK
+    implementation 'org.springframework.boot:spring-boot-starter-log4j2'
+
+    // SLF4J bridge for Log4j2 (fixes SLF4J binding issue)
+    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl'
+
+    // Database
+    implementation 'mysql:mysql-connector-java:8.0.33'
+    runtimeOnly 'com.h2database:h2'
+
+    // MyBatis Plus for advanced database operations (替代默认的Spring Data JPA以减少冲突)
+    implementation("com.baomidou:mybatis-plus-boot-starter:${mybatisPlusVersion}") {
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-jdbc'
+    }
+
+    // Netty for high-performance networking
+    implementation "io.netty:netty-all:${nettyVersion}"
+
+    // JSON processing
+    implementation "com.google.code.gson:gson:${gsonVersion}"
+
+    // JWT for authentication
+    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-gson:${jjwtVersion}"
+
+    // Apache Commons
+    implementation 'org.apache.commons:commons-lang3'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Development tools
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    // Test dependencies
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+
+    // Original MobileIMSDK dependency
+    implementation fileTree(dir: '../Server/lib', include: ['*.jar'])
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+
+    // 测试时使用开发配置
+    systemProperty 'spring.profiles.active', 'test'
+
+    // 测试输出配置
+    testLogging {
+        events "passed", "skipped", "failed", "standardOut", "standardError"
+        showStandardStreams = false
+        exceptionFormat = "full"
+    }
+
+    doFirst {
+        println "🧪 运行TeleMsg单元测试..."
+    }
+}
+
+// Task to copy resources
+task copyResources(type: Copy) {
+    from '../'
+    into 'src/main/resources'
+    include 'README.md'
+}
+
+// ==================== 测试和调试任务配置 ====================
+
+// 开发环境运行 (使用H2内存数据库)
+task runDev(type: JavaExec, group: 'application', description: '在开发环境运行服务器 (H2数据库)') {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.telemsg.server.TeleMsgServerApplication'
+    args = ['--spring.profiles.active=dev']
+
+    // JVM调试参数
+    jvmArgs = [
+        '-Xmx1024m',
+        '-Xms256m',
+        '-XX:+UseG1GC',
+        '-Dfile.encoding=UTF-8'
+    ]
+
+    // 设置系统属性，方便调试
+    systemProperty 'spring.output.ansi.enabled', 'always'
+    systemProperty 'logging.level.com.telemsg.server', 'DEBUG'
+
+    // 自动重启时保持JVM参数
+    if (project.hasProperty('debug')) {
+        jvmArgs += ['-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005']
+        println "🔧 调试模式启用，调试端口: 5005"
+    }
+
+    doFirst {
+        println "🚀 启动TeleMsg开发服务器..."
+        println "📊 HTTP API: http://localhost:8080/api"
+        println "🔌 TCP IM端口: 8901"
+        println "💾 数据库: H2内存数据库 (http://localhost:8080/h2-console)"
+        println "📝 日志级别: DEBUG"
+        if (project.hasProperty('debug')) {
+            println "🐛 调试端口: 5005 (IDEA可直接附加)"
+        }
+        println "="*50
+    }
+}
+
+// 生产环境运行 (使用MySQL数据库)
+task runProd(type: JavaExec, group: 'application', description: '在生产环境运行服务器 (MySQL数据库)') {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.telemsg.server.TeleMsgServerApplication'
+    args = ['--spring.profiles.active=prod']
+
+    jvmArgs = [
+        '-Xmx2048m',
+        '-Xms512m',
+        '-XX:+UseG1GC',
+        '-server'
+    ]
+
+    doFirst {
+        println "🚀 启动TeleMsg生产服务器..."
+        println "📊 HTTP API: http://localhost:8080/api"
+        println "🔌 TCP IM端口: 8901"
+        println "💾 数据库: MySQL (需要预先配置)"
+        println "="*50
+    }
+}
+
+// 调试模式运行 (带调试端口)
+task runDebug(type: JavaExec, group: 'application', description: '调试模式运行服务器 (端口5005)') {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.telemsg.server.TeleMsgServerApplication'
+    args = ['--spring.profiles.active=dev']
+
+    jvmArgs = [
+        '-Xmx1024m',
+        '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005',
+        '-XX:+UseG1GC'
+    ]
+
+    doFirst {
+        println "🐛 启动TeleMsg调试服务器..."
+        println "📊 HTTP API: http://localhost:8080/api"
+        println "🔌 TCP IM端口: 8901"
+        println "🐛 调试端口: 5005"
+        println "💡 IDEA调试: Run -> Attach to Process -> 选择端口5005"
+        println "="*50
+    }
+}
+
+// 快速测试运行 (最小化日志)
+task runQuick(type: JavaExec, group: 'application', description: '快速启动测试 (最小化日志)') {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.telemsg.server.TeleMsgServerApplication'
+    args = [
+        '--spring.profiles.active=dev',
+        '--logging.level.org.springframework=WARN',
+        '--logging.level.org.hibernate=WARN',
+        '--spring.jpa.show-sql=false'
+    ]
+
+    jvmArgs = ['-Xmx512m', '-XX:+UseG1GC']
+
+    doFirst {
+        println "⚡ 快速启动TeleMsg服务器 (最小化日志)..."
+        println "📊 API测试: http://localhost:8080/api/actuator/health"
+        println "="*30
+    }
+}
+
+// API测试任务
+task testApi(group: 'verification', description: '测试API接口') {
+    doLast {
+        println "🧪 API测试命令:"
+        println "# 健康检查"
+        println "curl http://localhost:8080/api/actuator/health"
+        println ""
+        println "# 用户注册"
+        println 'curl -X POST http://localhost:8080/api/users/register \\'
+        println '  -H "Content-Type: application/json" \\'
+        println '  -d \'{"username":"test","password":"123456","email":"test@example.com"}\''
+        println ""
+        println "# 用户登录"
+        println 'curl -X POST http://localhost:8080/api/users/login \\'
+        println '  -H "Content-Type: application/json" \\'
+        println '  -d \'{"username":"test","password":"123456"}\''
+        println ""
+        println "💡 请先运行 ./gradlew runDev 启动服务器"
+    }
+}
+
+// 清理和重置数据库
+task cleanData(group: 'application', description: '清理H2数据库数据') {
+    doLast {
+        delete fileTree(dir: '.', include: '**/*.db')
+        println "🧹 H2数据库数据已清理"
+    }
+}
+
+// 显示所有可用端口
+task showPorts(group: 'help', description: '显示服务端口信息') {
+    doLast {
+        println "🔌 TeleMsg服务端口信息:"
+        println "  HTTP API端口:    8080"
+        println "  TCP IM端口:      8901 (客户端连接)"
+        println "  WebSocket端口:   3000 (Web客户端)"
+        println "  UDP端口:         7901"
+        println "  调试端口:        5005 (runDebug时启用)"
+        println "  H2控制台:       http://localhost:8080/h2-console"
+    }
+}
+
+// 兼容原来的任务名
+task runServer {
+    dependsOn 'runDev'
+    group = 'application'
+    description = '运行服务器 (等同于runDev)'
+}
+
+// ==================== 构建配置 ====================
+
+// Build configuration
+jar {
+    enabled = false
+    archiveClassifier = ''
+}
+
+bootJar {
+    archiveFileName = 'telemsg-server.jar'
+    layered {
+        enabled = true
+    }
+}
+
+// ==================== 帮助信息 ====================
+
+// 自定义帮助任务
+task helpTeleMsg(group: 'help', description: '显示TeleMsg常用命令') {
+    doLast {
+        println """
+╔════════════════════════════════════════════════════════════╗
+║                    TeleMsg Gradle 命令帮助                  ║
+╠════════════════════════════════════════════════════════════╣
+║  开发测试命令:                                              ║
+║    ./gradlew runDev      - 开发环境运行 (推荐)              ║  
+║    ./gradlew runDebug    - 调试模式运行 (端口5005)          ║
+║    ./gradlew runQuick    - 快速启动 (最小日志)              ║
+║    ./gradlew runProd     - 生产环境运行                     ║
+║                                                            ║
+║  测试命令:                                                  ║
+║    ./gradlew testApi     - 显示API测试命令                  ║
+║    ./gradlew test        - 运行单元测试                     ║
+║                                                            ║
+║  工具命令:                                                  ║
+║    ./gradlew showPorts   - 显示端口信息                     ║
+║    ./gradlew cleanData   - 清理H2数据                      ║
+║    ./gradlew build       - 构建项目                        ║
+║    ./gradlew bootJar     - 构建JAR包                       ║
+║                                                            ║
+║  调试技巧:                                                  ║
+║    ./gradlew runDev -Pdebug  - 开发模式+调试端口           ║
+║                                                            ║
+╚════════════════════════════════════════════════════════════╝
+        """.stripIndent()
+    }
+}
+
