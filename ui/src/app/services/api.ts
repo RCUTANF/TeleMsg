@@ -64,19 +64,59 @@ class ApiService {
   }
 
   // 认证相关
-  async login(username: string, password: string): Promise<{ token: string; user: User }> {
-    return this.request('/auth/login', {
+  async login(username: string, password: string): Promise<{ token?: string; user: any }> {
+    const response = await this.request<any>('/users/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
+
+    // 适配后端返回格式
+    if (response.code === 200 && response.data) {
+      return {
+        token: response.data.token || 'mock-token', // 如果后端没有返回token，使用mock
+        user: {
+          id: response.data.userId,
+          username: response.data.username,
+          name: response.data.nickname || response.data.username,
+          avatar: response.data.avatar
+        }
+      };
+    }
+
+    throw new Error(response.message || '登录失败');
   }
 
-  async register(name: string, username: string, password: string): Promise<{ token: string; user: User }> {
-    return this.request('/auth/register', {
+  async register(name: string, username: string, password: string): Promise<{ token?: string; user: any }> {
+    const response = await this.request<any>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, username, password }),
+      body: JSON.stringify({
+        name,
+        username,
+        password
+      }),
     });
+
+    // 根据API文档，成功响应应该直接返回 token 和 user
+    if (response.token) {
+      return {
+        token: response.token,
+        user: {
+          id: response.user.id,
+          username: response.user.username,
+          name: response.user.name,
+          avatar: response.user.avatar || ''
+        }
+      };
+    }
+
+    // 如果返回的是错误格式
+    if (response.error) {
+      throw new Error(response.error);
+    }
+
+    throw new Error('注册失败');
   }
+
 
   async logout(): Promise<void> {
     await this.request('/auth/logout', { method: 'POST' });
