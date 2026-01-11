@@ -13,6 +13,7 @@
             <option value="$PROJECT_DIR$/Server" />
             <option value="$PROJECT_DIR$/Server_SDK" />
             <option value="$PROJECT_DIR$/ui" />
+            <option value="$PROJECT_DIR$/TeleMsg-SpringBoot" />
           </set>
         </option>
       </GradleProjectSettings>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <!-- 统一的日志格式 -->
+        <Property name="LOG_PATTERN">[%level] - [%d{HH:mm:ss.SSS}]%msg | (%logger{1.}^%M:%L)</Property>
+        <Property name="FILE_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</Property>
+    </Properties>
+
+    <Appenders>
+        <!-- Console appender with TeleMsg format -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}%n"/>
+        </Console>
+
+        <!-- File appender for application logs -->
+        <RollingFile name="AppFile" fileName="logs/telemsg-server.log"
+                     filePattern="logs/telemsg-server-%i.log.gz">
+            <PatternLayout pattern="${FILE_PATTERN}"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="100MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
+        </RollingFile>
+
+        <!-- File appender for error logs -->
+        <RollingFile name="ErrorFile" fileName="logs/telemsg-error.log"
+                     filePattern="logs/telemsg-error-%i.log.gz">
+            <PatternLayout pattern="${FILE_PATTERN}"/>
+            <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="100MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <!-- Spring Framework -->
+        <Logger name="org.springframework" level="INFO"/>
+
+        <!-- Hibernate/JPA -->
+        <Logger name="org.hibernate" level="WARN"/>
+        <Logger name="org.hibernate.SQL" level="DEBUG"/>
+        <Logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>
+
+        <!-- TeleMsg application -->
+        <Logger name="com.telemsg" level="DEBUG"/>
+
+        <!-- MobileIMSDK -->
+        <Logger name="net.x52im" level="INFO"/>
+
+        <!-- Netty -->
+        <Logger name="io.netty" level="WARN"/>
+
+        <!-- Root logger -->
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="AppFile"/>
+            <AppenderRef ref="ErrorFile"/>
+        </Root>
+    </Loggers>
+</Configuration>
+

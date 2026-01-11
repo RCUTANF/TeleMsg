@@ -5,9 +5,9 @@
 /Server_SDK/build/
 /Server/build/
 /.gradle/
-/.
 /ui/.gradle/
 /ui/build/
 /ui/dist/
 /ui/node_modules/
 /ui/package-lock.json
+/TeleMsg-SpringBoot/build/
