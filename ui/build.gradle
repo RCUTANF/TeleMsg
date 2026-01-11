@@ -1,0 +1,34 @@
+plugins {
+    id 'base'
+    id 'com.github.node-gradle.node'
+}
+
+node {
+    version = '18.17.0'
+    npmVersion = '9.6.7'
+    download = true
+    workDir = file("${project.buildDir}/nodejs")
+    nodeProjectDir = file("${project.projectDir}")
+}
+
+//task npmInstall(type: NpmTask) {
+//    description = '安装前端依赖'
+//    args = ['install']
+//}
+
+task buildUI(type: NpmTask, dependsOn: npmInstall) {
+    description = '构建前端项目'
+    args = ['run', 'build']
+}
+
+task devUI(type: NpmTask, dependsOn: npmInstall) {
+    description = '启动前端开发服务器'
+    args = ['run', 'dev']
+}
+
+task cleanUI(type: Delete) {
+    delete 'dist', 'node_modules/.cache'
+}
+
+clean.dependsOn cleanUI
+build.dependsOn buildUI
