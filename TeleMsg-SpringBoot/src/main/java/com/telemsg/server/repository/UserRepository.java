@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -71,4 +72,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying
     @Query("UPDATE User u SET u.deleted = true, u.updateTime = :updateTime WHERE u.userId = :userId")
     int softDeleteUser(String userId, LocalDateTime updateTime);
+
+    /**
+     * 查找未被删除的所有用户
+     */
+    List<User> findByDeletedFalse();
+
+    /**
+     * 统计未删除的用户总数
+     */
+    long countByDeletedFalse();
+
+    /**
+     * 统计指定状态且未删除的用户数量
+     */
+    long countByStatusAndDeletedFalse(User.UserStatus status);
 }

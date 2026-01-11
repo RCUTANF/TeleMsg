@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -55,6 +56,35 @@ public class UserService {
     }
 
     /**
+     * 客户端用户注册 (带显示名称)
+     */
+    @Transactional
+    public User registerUserWithDisplayName(String displayName, String username, String password, String email) {
+        // 检查用户名是否已存在
+        if (userRepository.existsByUsername(username)) {
+            throw new RuntimeException("用户名已存在");
+        }
+
+        // 检查邮箱是否已存在
+        if (email != null && userRepository.existsByEmail(email)) {
+            throw new RuntimeException("邮箱已被注册");
+        }
+
+        // 创建新用户
+        User user = new User();
+        user.setUserId(generateUserId());
+        user.setUsername(displayName != null ? displayName : username); // 使用显示名称作为用户名
+        user.setPassword(passwordEncoder.encode(password));
+        user.setEmail(email);
+        user.setStatus(User.UserStatus.OFFLINE);
+
+        User savedUser = userRepository.save(user);
+        log.info("用户注册成功: userId={}, username={}", savedUser.getUserId(), savedUser.getUsername());
+
+        return savedUser;
+    }
+
+    /**
      * 用户登录验证
      */
     public Optional<User> authenticateUser(String username, String password) {
@@ -89,9 +119,16 @@ public class UserService {
      */
     @Transactional
     public void updateUserStatus(String userId, User.UserStatus status) {
-        int updated = userRepository.updateUserStatus(userId, status, LocalDateTime.now());
-        if (updated > 0) {
-            log.debug("用户状态更新成功: userId={}, status={}", userId, status);
+        Optional<User> userOpt = userRepository.findByUserId(userId);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            user.setStatus(status);
+            user.setUpdateTime(LocalDateTime.now());
+            if (status == User.UserStatus.ONLINE) {
+                user.setLastLoginTime(LocalDateTime.now());
+            }
+            userRepository.save(user);
+            log.debug("用户状态更新: userId={}, status={}", userId, status);
         }
     }
 
@@ -105,6 +142,28 @@ public class UserService {
         if (updated > 0) {
             log.debug("用户登录信息更新成功: userId={}, loginIp={}", userId, loginIp);
         }
+    }
+
+    /**
+     * 更新用户资料
+     */
+    @Transactional
+    public User updateUserProfile(String userId, String name, String username) {
+        Optional<User> userOpt = userRepository.findByUserId(userId);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        User user = userOpt.get();
+        if (name != null) {
+            user.setUsername(name); // 使用name作为显示名称
+        }
+        user.setUpdateTime(LocalDateTime.now());
+
+        User updatedUser = userRepository.save(user);
+        log.info("用户资料更新成功: userId={}", userId);
+
+        return updatedUser;
     }
 
     /**
@@ -163,6 +222,27 @@ public class UserService {
         } else {
             throw new RuntimeException("用户删除失败");
         }
+    }
+
+    /**
+     * 查找所有用户
+     */
+    public List<User> findAllUsers() {
+        return userRepository.findByDeletedFalse();
+    }
+
+    /**
+     * 获取用户总数
+     */
+    public long getTotalUserCount() {
+        return userRepository.countByDeletedFalse();
+    }
+
+    /**
+     * 获取在线用户数
+     */
+    public long getOnlineUserCount() {
+        return userRepository.countByStatusAndDeletedFalse(User.UserStatus.ONLINE);
     }
 
     /**

@@ -27,9 +27,12 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable()) // 禁用CSRF，因为是API服务
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/users/register", "/api/users/login").permitAll() // 允许注册和登录
+                .requestMatchers("/auth/**").permitAll() // 允许认证相关端点
+                .requestMatchers("/users/register", "/users/login").permitAll() // 允许注册和登录
                 .requestMatchers("/actuator/**").permitAll() // 允许监控端点
-                .requestMatchers("/h2-console/**").permitAll() // 允许H2控制台（开发环���）
+                .requestMatchers("/h2-console/**").permitAll() // 允许H2控制台（开发环境）
+                .requestMatchers("/ws/**").permitAll() // 允许WebSocket连接
+                .requestMatchers("/files/**").permitAll() // 允许文件访问
                 .anyRequest().permitAll() // 临时允许所有请求，实际项目中应该配置具体的权限
             )
             .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable())); // 禁用frame选项，允许H2控制台

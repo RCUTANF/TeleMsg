@@ -180,6 +180,32 @@ task runProd(type: JavaExec, group: 'application', description: '在生产环境
     }
 }
 
+task runProdDebug(type: JavaExec, group: 'application', description: '在生产环境运行服务器 (DEBUG日志)') {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.telemsg.server.TeleMsgServerApplication'
+    args = [
+            '--spring.profiles.active=prod',
+            '--logging.level.root=DEBUG',
+            '--logging.level.com.telemsg=DEBUG',
+            '--logging.level.org.hibernate.SQL=DEBUG',
+            '--logging.level.org.hibernate.type.descriptor.sql.BasicBinder=TRACE'
+    ]
+    jvmArgs = [
+            '-Xmx2048m',
+            '-Xms512m',
+            '-XX:+UseG1GC',
+            '-server'
+    ]
+    doFirst {
+        println "🐛 启动TeleMsg生产服务器 (DEBUG模式)..."
+        println "📊 HTTP API: http://localhost:8080/api"
+        println "🔌 TCP IM端口: 8901"
+        println "💾 数据库: MySQL"
+        println "📝 日志级别: DEBUG"
+        println "="*50
+    }
+}
+
 // 调试模式运行 (带调试端口)
 task runDebug(type: JavaExec, group: 'application', description: '调试模式运行服务器 (端口5005)') {
     classpath = sourceSets.main.runtimeClasspath

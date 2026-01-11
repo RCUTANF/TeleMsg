@@ -2,6 +2,7 @@ package com.telemsg.server.controller;
 
 import com.telemsg.server.entity.User;
 import com.telemsg.server.service.UserService;
+import com.telemsg.server.service.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.constraints.NotBlank;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * 用户管理REST API
@@ -24,6 +27,7 @@ import java.util.Optional;
 public class UserController {
 
     private final UserService userService;
+    private final JwtService jwtService;
 
     /**
      * 用户注册
@@ -68,6 +72,48 @@ public class UserController {
         } catch (Exception e) {
             log.error("用户登录失败", e);
             return ResponseEntity.badRequest().body(ApiResponse.error("登录失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 获取当前用户信息
+     */
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
+        try {
+            // 从JWT token中提取用户ID (这里简化处理，实际应该通过JWT服务)
+            String userId = extractUserIdFromToken(authHeader);
+
+            Optional<User> userOpt = userService.findByUserId(userId);
+
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            return ResponseEntity.ok(convertToClientResponse(userOpt.get()));
+
+        } catch (Exception e) {
+            log.error("获取当前用户信息失败", e);
+            return ResponseEntity.badRequest().body("获取用户信息失败");
+        }
+    }
+
+    /**
+     * 更新用户资料
+     */
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@RequestHeader("Authorization") String authHeader,
+                                         @RequestBody UpdateProfileRequest request) {
+        try {
+            String userId = extractUserIdFromToken(authHeader);
+
+            User user = userService.updateUserProfile(userId, request.getName(), request.getUsername());
+
+            return ResponseEntity.ok(convertToClientResponse(user));
+
+        } catch (Exception e) {
+            log.error("更新用户资料失败", e);
+            return ResponseEntity.badRequest().body("更新资料失败: " + e.getMessage());
         }
     }
 
@@ -282,5 +328,49 @@ public class UserController {
 
         public java.time.LocalDateTime getLastLoginTime() { return lastLoginTime; }
         public void setLastLoginTime(java.time.LocalDateTime lastLoginTime) { this.lastLoginTime = lastLoginTime; }
+    }
+
+    /**
+     * 从JWT token中提取用户ID
+     */
+    private String extractUserIdFromToken(String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
+                return jwtService.extractUserId(token);
+            } catch (Exception e) {
+                log.error("解析JWT token失败", e);
+                throw new RuntimeException("无效的认证token");
+            }
+        }
+        throw new RuntimeException("无效的认证token");
+    }
+
+    /**
+     * 转换为客户端期望的响应格式
+     */
+    private Object convertToClientResponse(User user) {
+        java.util.Map<String, Object> response = new java.util.HashMap<>();
+        response.put("id", user.getUserId());
+        response.put("name", user.getUsername());
+        response.put("username", user.getUsername());
+        response.put("avatar", user.getAvatar() != null ? user.getAvatar() : "");
+        response.put("role", "user");
+        return response;
+    }
+
+    public static class UpdateProfileRequest {
+        @NotBlank(message = "姓名不能为空")
+        private String name;
+
+        @NotBlank(message = "用户名不能为空")
+        private String username;
+
+        // Getters and Setters
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
     }
 }
