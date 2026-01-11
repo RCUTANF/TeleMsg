@@ -1,252 +1,284 @@
-import { useState } from 'react';
+// ui/src/app/App.tsx
+import { useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { ContactList, Contact } from './components/ContactList';
 import { ChatArea, Message } from './components/ChatArea';
-import { SettingsDialog } from './components/SettingsDialog';
-import { AdminPanel } from './components/AdminPanel';
-import { NotificationCenter } from './components/NotificationCenter';
-import { VideoCallDialog } from './components/VideoCallDialog';
 import { Button } from './components/ui/button';
+import { NotificationCenter } from './components/NotificationCenter';
+import { SettingsDialog } from './components/SettingsDialog';
+// import { AdminDialog } from './components/AdminDialog';
+import { VideoCallDialog } from './components/VideoCallDialog';
+import { Bell, Settings, Shield, LogOut } from 'lucide-react';
 import { Badge } from './components/ui/badge';
-import { 
-  Settings, 
-  Bell, 
-  Shield, 
-  LogOut,
-  Menu,
-  X
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { Toaster } from './components/ui/sonner';
+import { apiService } from './services/api';
 
 interface User {
   id: string;
   name: string;
   username: string;
   avatar: string;
-  isAdmin?: boolean;
+  role?: string;
 }
 
-export default function App() {
+function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [isVoiceCall, setIsVoiceCall] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  // 模拟联系人数据
-  const [contacts] = useState<Contact[]>([
-    {
-      id: '2',
-      name: '张三',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangsan',
-      status: 'online',
-      lastMessage: '好的，明天见！',
-      unreadCount: 2,
-      lastSeen: '刚刚'
-    },
-    {
-      id: '3',
-      name: '李四',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lisi',
-      status: 'busy',
-      lastMessage: '项目文档已发送',
-      unreadCount: 0,
-      lastSeen: '5分钟前'
-    },
-    {
-      id: '4',
-      name: '王五',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wangwu',
-      status: 'offline',
-      lastMessage: '收到，谢谢',
-      lastSeen: '2小时前'
-    },
-    {
-      id: '5',
-      name: '赵六',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhaoliu',
-      status: 'online',
-      lastSeen: '在线'
-    },
-    {
-      id: '6',
-      name: '孙七',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sunqi',
-      status: 'online',
-      lastMessage: '明天的会议几点开始？',
-      unreadCount: 1,
-      lastSeen: '在线'
+  // 初始化 - 检查登录状态
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      loadCurrentUser();
     }
-  ]);
+  }, []);
 
-  // 模拟消息数据
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      senderId: '2',
-      content: '你好！最近项目进展怎么样了？',
-      timestamp: new Date(Date.now() - 3600000),
-      type: 'text',
-      status: 'read'
-    },
-    {
-      id: '2',
-      senderId: '1',
-      content: '进展很顺利，已经完成了大部分功能开发。',
-      timestamp: new Date(Date.now() - 3000000),
-      type: 'text',
-      status: 'read'
-    },
-    {
-      id: '3',
-      senderId: '2',
-      content: '太好了！能发一下最新的设计稿吗？',
-      timestamp: new Date(Date.now() - 2400000),
-      type: 'text',
-      status: 'read'
-    },
-    {
-      id: '4',
-      senderId: '1',
-      content: '项目设计稿_v2.pdf',
-      timestamp: new Date(Date.now() - 1800000),
-      type: 'file',
-      fileName: '项目设计稿_v2.pdf',
-      fileSize: '2.3 MB',
-      status: 'read'
-    },
-    {
-      id: '5',
-      senderId: '2',
-      content: '好的，明天见！',
-      timestamp: new Date(Date.now() - 600000),
-      type: 'text',
-      status: 'sent'
+  // 加载当前用户
+  const loadCurrentUser = async () => {
+    try {
+      const user = await apiService.getCurrentUser();
+      setCurrentUser(user);
+      loadContacts();
+      connectWebSocket(user.id);
+    } catch (error) {
+      console.error('Failed to load user:', error);
+      localStorage.removeItem('auth_token');
     }
-  ]);
-
-  const unreadNotifications = 3; // 模拟未读通知数量
-
-  const handleLogin = (user: User) => {
-    setCurrentUser({ ...user, isAdmin: true }); // 第一个登录用户设为管理员
-    toast.success(`欢迎回来，${user.name}！`);
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setSelectedContactId(null);
-    toast.info('您已退出登录');
+  // 连接 WebSocket
+  const connectWebSocket = (userId: string) => {
+    apiService.connectWebSocket(userId, handleWebSocketMessage);
   };
 
-  const handleSendMessage = (content: string, type: 'text' | 'file' | 'image', file?: File) => {
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      senderId: currentUser!.id,
-      content,
-      timestamp: new Date(),
-      type,
-      status: 'sending'
-    };
-
-    if (file && type === 'file') {
-      newMessage.fileName = file.name;
-      newMessage.fileSize = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+  // 处理 WebSocket 消息
+  const handleWebSocketMessage = (data: any) => {
+    switch (data.type) {
+      case 'message':
+        handleNewMessage(data.message);
+        break;
+      case 'notification':
+        setUnreadNotifications((prev) => prev + 1);
+        break;
+      case 'contact_status':
+        updateContactStatus(data.contactId, data.status);
+        break;
+      default:
+        console.log('Unknown message type:', data.type);
     }
+  };
 
-    setMessages([...messages, newMessage]);
+  // 加载联系人列表
+  const loadContacts = async () => {
+    try {
+      const contactsData = await apiService.getContacts();
+      setContacts(contactsData);
+    } catch (error) {
+      console.error('Failed to load contacts:', error);
+    }
+  };
 
-    // 模拟发送成功
-    setTimeout(() => {
-      setMessages(prev => prev.map(m => 
-        m.id === newMessage.id ? { ...m, status: 'sent' } : m
-      ));
-      
-      if (type === 'text') {
-        toast.success('消息已发送');
-      } else if (type === 'file') {
-        toast.success('文件已发送');
+  // 加载聊天记录
+  const loadMessages = async (contactId: string) => {
+    try {
+      const messagesData = await apiService.getMessages(contactId);
+      setMessages(messagesData);
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+  };
+
+  // 处理新消息
+  const handleNewMessage = (message: Message) => {
+    if (message.senderId === selectedContactId || message.senderId === currentUser?.id) {
+      setMessages((prev) => [...prev, message]);
+    }
+    // 更新联系人的最后消息
+    updateContactLastMessage(message.senderId, message.content);
+  };
+
+  // 更新联系人最后消息
+  const updateContactLastMessage = (contactId: string, lastMessage: string) => {
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.id === contactId
+          ? { ...c, lastMessage, unreadCount: (c.unreadCount || 0) + 1 }
+          : c
+      )
+    );
+  };
+
+  // 更新联系人状态
+  const updateContactStatus = (contactId: string, status: Contact['status']) => {
+    setContacts((prev) =>
+      prev.map((c) => (c.id === contactId ? { ...c, status } : c))
+    );
+  };
+
+  // 登录处理
+  const handleLogin = async (user: User) => {
+    try {
+      const response = await apiService.login(user.username, 'password');
+      localStorage.setItem('auth_token', response.token);
+      setCurrentUser(response.user);
+      loadContacts();
+      connectWebSocket(response.user.id);
+    } catch (error) {
+      console.error('Login failed:', error);
+      // 降级到本地模式
+      setCurrentUser(user);
+    }
+  };
+
+  // 登出处理
+  const handleLogout = async () => {
+    try {
+      await apiService.logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      apiService.disconnectWebSocket();
+      localStorage.removeItem('auth_token');
+      setCurrentUser(null);
+      setContacts([]);
+      setMessages([]);
+      setSelectedContactId(null);
+    }
+  };
+
+  // 选择联系人
+  const handleSelectContact = (contactId: string) => {
+    setSelectedContactId(contactId);
+    loadMessages(contactId);
+    // 清除未读计数
+    setContacts((prev) =>
+      prev.map((c) => (c.id === contactId ? { ...c, unreadCount: 0 } : c))
+    );
+  };
+
+  // 发送消息
+  const handleSendMessage = async (
+    content: string,
+    type: 'text' | 'file' | 'image',
+    file?: File
+  ) => {
+    if (!currentUser || !selectedContactId) return;
+
+    try {
+      let messageData;
+      if (file) {
+        messageData = await apiService.uploadFile(file, selectedContactId);
       } else {
-        toast.success('图片已发送');
+        messageData = await apiService.sendMessage(selectedContactId, content, type);
       }
-    }, 500);
+
+      const newMessage: Message = {
+        id: messageData.id || Date.now().toString(),
+        senderId: currentUser.id,
+        content,
+        timestamp: new Date(),
+        type,
+        status: 'sent',
+        fileUrl: messageData.fileUrl,
+        fileName: messageData.fileName,
+        fileSize: messageData.fileSize,
+      };
+
+      setMessages((prev) => [...prev, newMessage]);
+      updateContactLastMessage(selectedContactId, content);
+
+      // 通过 WebSocket 发送
+      apiService.sendWebSocketMessage({
+        type: 'message',
+        message: newMessage,
+        recipientId: selectedContactId,
+      });
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
   };
 
-  const handleStartVideoCall = () => {
-    setIsVoiceCall(false);
-    setVideoCallOpen(true);
-    toast.info('正在发起视频通话...');
+  // 更新个人资料
+  const handleUpdateProfile = async (name: string, username: string) => {
+    try {
+      const updatedUser = await apiService.updateProfile(name, username);
+      setCurrentUser(updatedUser);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    }
   };
 
-  const handleStartVoiceCall = () => {
-    setIsVoiceCall(true);
-    setVideoCallOpen(true);
-    toast.info('正在发起语音通话...');
+  // 发起视频通话
+  const handleStartVideoCall = async () => {
+    if (!selectedContactId) return;
+    try {
+      await apiService.initiateVideoCall(selectedContactId, false);
+      setIsVoiceCall(false);
+      setVideoCallOpen(true);
+    } catch (error) {
+      console.error('Failed to start video call:', error);
+    }
   };
 
-  const selectedContact = contacts.find(c => c.id === selectedContactId);
-  const currentMessages = selectedContactId ? messages : [];
+  // 发起语音通话
+  const handleStartVoiceCall = async () => {
+    if (!selectedContactId) return;
+    try {
+      await apiService.initiateVideoCall(selectedContactId, true);
+      setIsVoiceCall(true);
+      setVideoCallOpen(true);
+    } catch (error) {
+      console.error('Failed to start voice call:', error);
+    }
+  };
 
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  const selectedContact = contacts.find((c) => c.id === selectedContactId);
+
   return (
-    <div className="h-screen flex flex-col bg-gray-100">
-      <Toaster position="top-right" />
-      
+    <div className="h-screen flex flex-col bg-gray-50">
       {/* 顶部导航栏 */}
-      <header className="h-16 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between px-6 shadow-lg">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white hover:bg-white/10 lg:hidden"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">💬</span>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">企业通讯平台</h1>
-              <p className="text-xs text-blue-100">Enterprise Communication</p>
-            </div>
+      <div className="h-16 bg-white border-b px-6 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-lg">IM</span>
           </div>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            企业通讯平台
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
-            className="text-white hover:bg-white/10 relative"
-            onClick={() => setNotificationCenterOpen(true)}
+            className="relative"
+            onClick={() => setNotificationOpen(true)}
           >
             <Bell className="h-5 w-5" />
             {unreadNotifications > 0 && (
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-red-500 border-2 border-blue-600">
+              <Badge
+                variant="destructive"
+                className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              >
                 {unreadNotifications}
               </Badge>
             )}
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white hover:bg-white/10"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-          {currentUser.isAdmin && (
+          {currentUser.role === 'admin' && (
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:bg-white/10"
-              onClick={() => setAdminPanelOpen(true)}
+              onClick={() => setAdminOpen(true)}
             >
               <Shield className="h-5 w-5" />
             </Button>
@@ -254,30 +286,27 @@ export default function App() {
           <Button
             variant="ghost"
             size="icon"
-            className="text-white hover:bg-white/10"
-            onClick={handleLogout}
+            onClick={() => setSettingsOpen(true)}
           >
+            <Settings className="h-5 w-5" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={handleLogout}>
             <LogOut className="h-5 w-5" />
           </Button>
         </div>
-      </header>
+      </div>
 
-      {/* 主内容区域 */}
+      {/* 主体内容 */}
       <div className="flex-1 flex overflow-hidden">
-        {/* 联系人列表 */}
-        <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block`}>
-          <ContactList
-            contacts={contacts}
-            selectedContactId={selectedContactId}
-            onSelectContact={setSelectedContactId}
-            currentUser={currentUser}
-          />
-        </div>
-
-        {/* 聊天区域 */}
+        <ContactList
+          contacts={contacts}
+          selectedContactId={selectedContactId}
+          onSelectContact={handleSelectContact}
+          currentUser={currentUser}
+        />
         <ChatArea
           contact={selectedContact || null}
-          messages={currentMessages}
+          messages={messages}
           currentUserId={currentUser.id}
           onSendMessage={handleSendMessage}
           onStartVideoCall={handleStartVideoCall}
@@ -285,32 +314,20 @@ export default function App() {
         />
       </div>
 
-      {/* 设置对话框 */}
+      {/* 弹窗 */}
+      <NotificationCenter
+        open={notificationOpen}
+        onClose={() => setNotificationOpen(false)}
+      />
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         currentUser={currentUser}
-        onUpdateProfile={(name, username) => {
-          setCurrentUser({ ...currentUser, name, username });
-          toast.success('个人资料已更新');
-        }}
+        onUpdateProfile={handleUpdateProfile}
       />
-
-      {/* 管理员面板 */}
-      {currentUser.isAdmin && (
-        <AdminPanel
-          open={adminPanelOpen}
-          onClose={() => setAdminPanelOpen(false)}
-        />
-      )}
-
-      {/* 通知中心 */}
-      <NotificationCenter
-        open={notificationCenterOpen}
-        onClose={() => setNotificationCenterOpen(false)}
-      />
-
-      {/* 视频/语音通话 */}
+      {/*{currentUser.role === 'admin' && (*/}
+      {/*  <AdminDialog open={adminOpen} onClose={() => setAdminOpen(false)} />*/}
+      {/*)}*/}
       {selectedContact && (
         <VideoCallDialog
           open={videoCallOpen}
@@ -323,3 +340,5 @@ export default function App() {
     </div>
   );
 }
+
+export default App;
