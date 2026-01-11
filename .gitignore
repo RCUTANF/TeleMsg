@@ -11,3 +11,4 @@
 /ui/node_modules/
 /ui/package-lock.json
 /TeleMsg-SpringBoot/build/
+/logs/
