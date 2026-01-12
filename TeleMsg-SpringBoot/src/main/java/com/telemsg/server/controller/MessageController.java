@@ -106,29 +106,6 @@ public class MessageController {
         }
     }
 
-    /**
-     * 发送私聊消息 (保留原有API)
-     */
-    @PostMapping("/private")
-    public ResponseEntity<?> sendPrivateMessage(@RequestBody @Validated SendPrivateMessageRequest request) {
-        try {
-            Message message = messageService.sendPrivateMessage(
-                request.getSenderId(),
-                request.getReceiverId(),
-                Message.MessageType.valueOf(request.getMessageType().toUpperCase()),
-                request.getContent(),
-                request.getMediaUrl()
-            );
-
-            MessageResponse response = convertToResponse(message);
-
-            return ResponseEntity.ok(ApiResponse.success("消息发送成功", response));
-
-        } catch (Exception e) {
-            log.error("发送私聊消息失败", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
-    }
 
     /**
      * 发送群聊消息
@@ -344,35 +321,6 @@ public class MessageController {
 
     // ===== 请求/响应对象 =====
 
-    public static class SendPrivateMessageRequest {
-        @NotBlank(message = "发送者ID不能为空")
-        private String senderId;
-
-        @NotBlank(message = "接收者ID不能为空")
-        private String receiverId;
-
-        @NotBlank(message = "消息类型不能为空")
-        private String messageType;
-
-        private String content;
-        private String mediaUrl;
-
-        // Getters and Setters
-        public String getSenderId() { return senderId; }
-        public void setSenderId(String senderId) { this.senderId = senderId; }
-
-        public String getReceiverId() { return receiverId; }
-        public void setReceiverId(String receiverId) { this.receiverId = receiverId; }
-
-        public String getMessageType() { return messageType; }
-        public void setMessageType(String messageType) { this.messageType = messageType; }
-
-        public String getContent() { return content; }
-        public void setContent(String content) { this.content = content; }
-
-        public String getMediaUrl() { return mediaUrl; }
-        public void setMediaUrl(String mediaUrl) { this.mediaUrl = mediaUrl; }
-    }
 
     public static class SendGroupMessageRequest {
         @NotBlank(message = "发送者ID不能为空")

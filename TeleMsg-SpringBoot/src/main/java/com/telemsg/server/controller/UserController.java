@@ -29,51 +29,9 @@ public class UserController {
     private final UserService userService;
     private final JwtService jwtService;
 
-    /**
-     * 用户注册
-     */
-    @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody @Validated UserRegisterRequest request) {
-        try {
-            User user = userService.registerUser(
-                request.getUsername(),
-                request.getPassword(),
-                request.getEmail(),
-                request.getPhone()
-            );
 
-            UserResponse response = convertToResponse(user);
 
-            return ResponseEntity.ok(ApiResponse.success("注册成功", response));
 
-        } catch (Exception e) {
-            log.error("用户注册失败", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
-    }
-
-    /**
-     * 用户登录
-     */
-    @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody @Validated UserLoginRequest request) {
-        try {
-            Optional<User> userOpt = userService.authenticateUser(request.getUsername(), request.getPassword());
-
-            if (userOpt.isEmpty()) {
-                return ResponseEntity.badRequest().body(ApiResponse.error("用户名或密码错误"));
-            }
-
-            User user = userOpt.get();
-            UserResponse response = convertToResponse(user);
-
-            return ResponseEntity.ok(ApiResponse.success("登录成功", response));
-
-        } catch (Exception e) {
-            log.error("用户登录失败", e);
-            return ResponseEntity.badRequest().body(ApiResponse.error("登录失败: " + e.getMessage()));
-        }
-    }
 
     /**
      * 获取当前用户信息
@@ -216,44 +174,9 @@ public class UserController {
 
     // ===== 请求/响应对象 =====
 
-    public static class UserRegisterRequest {
-        @NotBlank(message = "用户名不能为空")
-        private String username;
 
-        @NotBlank(message = "密码不能为空")
-        private String password;
 
-        private String email;
-        private String phone;
 
-        // Getters and Setters
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
-
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-
-        public String getPhone() { return phone; }
-        public void setPhone(String phone) { this.phone = phone; }
-    }
-
-    public static class UserLoginRequest {
-        @NotBlank(message = "用户名不能为空")
-        private String username;
-
-        @NotBlank(message = "密码不能为空")
-        private String password;
-
-        // Getters and Setters
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
-    }
 
     public static class UserUpdateRequest {
         private String email;
