@@ -5,6 +5,7 @@ import com.telemsg.server.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -245,6 +246,39 @@ public class MessageService {
         messageRepository.save(message);
 
         log.info("消息撤回成功: messageId={}, operatorId={}", messageId, operatorId);
+    }
+
+    /**
+     * 获取私聊消息列表
+     */
+    public List<Message> getPrivateMessages(String userId1, String userId2, int limit) {
+        Pageable pageable = PageRequest.of(0, limit);
+        return messageRepository.findPrivateMessagesByUsers(userId1, userId2, pageable);
+    }
+
+    /**
+     * 标记消息为已读
+     */
+    @Transactional
+    public void markMessageAsRead(String messageId, String userId) {
+        Optional<Message> messageOpt = messageRepository.findByMessageId(messageId);
+        if (messageOpt.isPresent()) {
+            Message message = messageOpt.get();
+            // 只有接收者可以标记消息为已读
+            if (message.getReceiverId() != null && message.getReceiverId().equals(userId)) {
+                message.setStatus(Message.MessageStatus.READ);
+                message.setUpdateTime(LocalDateTime.now());
+                messageRepository.save(message);
+                log.debug("消息已标记为已读: messageId={}, userId={}", messageId, userId);
+            }
+        }
+    }
+
+    /**
+     * 获取消息总数
+     */
+    public long getTotalMessageCount() {
+        return messageRepository.count();
     }
 
     /**
