@@ -26,6 +26,7 @@ import {
 export interface Message {
   id: string;
   senderId: string;
+  receiverId?: string;
   content: string;
   timestamp: Date;
   type: 'text' | 'file' | 'image';
@@ -85,7 +86,12 @@ export function ChatArea({
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    // 确保转换为东八区（GMT+8）时间
+    return date.toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Shanghai'
+    });
   };
 
   if (!contact) {
