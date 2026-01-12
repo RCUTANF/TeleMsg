@@ -31,8 +31,7 @@ import { Switch } from './ui/switch';
 import { 
   Shield, 
   Users, 
-  Settings, 
-  UserPlus, 
+  UserPlus,
   Trash2, 
   Edit,
   Search,
@@ -56,7 +55,8 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ open, onClose }: AdminPanelProps) {
-  const [users, setUsers] = useState<User[]>([
+  // 模拟用户数据 - TODO: 替换为 API 调用
+  const [users] = useState<User[]>([
     {
       id: '1',
       name: '张三',
