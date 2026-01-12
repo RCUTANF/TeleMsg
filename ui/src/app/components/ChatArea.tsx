@@ -11,7 +11,6 @@ import {
   Phone, 
   Video,
   FileText,
-  Image as ImageIcon,
   Download,
   Check,
   CheckCheck
@@ -264,7 +263,7 @@ export function ChatArea({
               placeholder="输入消息..."
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               className="resize-none"
             />
           </div>

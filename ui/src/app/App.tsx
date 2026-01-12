@@ -3,21 +3,24 @@ import { useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { ContactList, Contact } from './components/ContactList';
 import { ChatArea, Message } from './components/ChatArea';
-import { Button } from './components/ui/button';
-import { NotificationCenter } from './components/NotificationCenter';
 import { SettingsDialog } from './components/SettingsDialog';
-// import { AdminDialog } from './components/AdminDialog';
+import { AdminPanel } from './components/AdminPanel';
+import { AdminCenter } from './components/AdminCenter';
+import { NotificationCenter } from './components/NotificationCenter';
 import { VideoCallDialog } from './components/VideoCallDialog';
-import { Bell, Settings, Shield, LogOut } from 'lucide-react';
+import { Button } from './components/ui/button';
+import { Bell, Settings, Shield, LogOut, Menu, X } from 'lucide-react';
 import { Badge } from './components/ui/badge';
+import { toast } from 'sonner';
 import { apiService } from './services/api';
+import { Toaster } from './components/ui/sonner';
 
 interface User {
   id: string;
   name: string;
   username: string;
   avatar: string;
-  role?: string;
+  isAdmin?: boolean;
 }
 
 function App() {
@@ -25,9 +28,11 @@ function App() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminCenterOpen, setAdminCenterOpen] = useState(false);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [isVoiceCall, setIsVoiceCall] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -124,16 +129,14 @@ function App() {
 
   // 登录处理
   const handleLogin = async (user: User) => {
+    // LoginPage 已经完成了登录和token保存，这里只需要设置用户状态并加载数据
+    setCurrentUser(user);
     try {
-      const response = await apiService.login(user.username, 'password');
-      localStorage.setItem('auth_token', response.token);
-      setCurrentUser(response.user);
-      loadContacts();
-      connectWebSocket(response.user.id);
+      await loadContacts();
+      connectWebSocket(user.id);
     } catch (error) {
-      console.error('Login failed:', error);
-      // 降级到本地模式
-      setCurrentUser(user);
+      console.error('Failed to load contacts after login:', error);
+      toast.error('加载联系人失败，请刷新页面');
     }
   };
 
@@ -210,8 +213,10 @@ function App() {
     try {
       const updatedUser = await apiService.updateProfile(name, username);
       setCurrentUser(updatedUser);
+      toast.success('个人资料已更新');
     } catch (error) {
       console.error('Failed to update profile:', error);
+      toast.error('更新个人资料失败');
     }
   };
 
@@ -239,19 +244,41 @@ function App() {
     }
   };
 
+  const selectedContact = contacts.find(c => c.id === selectedContactId);
+  const currentMessages = selectedContactId ? messages : [];
+
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  const selectedContact = contacts.find((c) => c.id === selectedContactId);
+  // 如果管理中心打开，显示管理中心
+  if (adminCenterOpen && currentUser.isAdmin) {
+    return <AdminCenter onClose={() => setAdminCenterOpen(false)} />;
+  }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-100">
+      <Toaster position="top-right" />
+
       {/* 顶部导航栏 */}
-      <div className="h-16 bg-white border-b px-6 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-lg">IM</span>
+      <header className="h-16 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between px-6 shadow-lg">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-white/10 lg:hidden"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">💬</span>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">企业通讯平台</h1>
+              <p className="text-xs text-blue-100">Enterprise Communication</p>
+            </div>
           </div>
           <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             企业通讯平台
@@ -261,52 +288,56 @@ function App() {
           <Button
             variant="ghost"
             size="icon"
-            className="relative"
-            onClick={() => setNotificationOpen(true)}
+            className="text-white hover:bg-white/10 relative"
+            onClick={() => setNotificationCenterOpen(true)}
           >
             <Bell className="h-5 w-5" />
             {unreadNotifications > 0 && (
-              <Badge
-                variant="destructive"
-                className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
-              >
+              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-red-500 border-2 border-blue-600">
                 {unreadNotifications}
               </Badge>
             )}
           </Button>
-          {currentUser.role === 'admin' && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setAdminOpen(true)}
-            >
-              <Shield className="h-5 w-5" />
-            </Button>
-          )}
           <Button
             variant="ghost"
             size="icon"
+            className="text-white hover:bg-white/10"
             onClick={() => setSettingsOpen(true)}
           >
             <Settings className="h-5 w-5" />
           </Button>
+          {currentUser.isAdmin && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/10"
+              onClick={() => setAdminCenterOpen(true)}
+            >
+              <Shield className="h-5 w-5" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={handleLogout}>
             <LogOut className="h-5 w-5" />
           </Button>
         </div>
-      </div>
+      </header>
 
-      {/* 主体内容 */}
+      {/* 主内容区域 */}
       <div className="flex-1 flex overflow-hidden">
-        <ContactList
-          contacts={contacts}
-          selectedContactId={selectedContactId}
-          onSelectContact={handleSelectContact}
-          currentUser={currentUser}
-        />
+        {/* 联系人列表 */}
+        <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block`}>
+          <ContactList
+            contacts={contacts}
+            selectedContactId={selectedContactId}
+            onSelectContact={handleSelectContact}
+            currentUser={currentUser}
+          />
+        </div>
+
+        {/* 聊天区域 */}
         <ChatArea
           contact={selectedContact || null}
-          messages={messages}
+          messages={currentMessages}
           currentUserId={currentUser.id}
           onSendMessage={handleSendMessage}
           onStartVideoCall={handleStartVideoCall}
@@ -314,20 +345,29 @@ function App() {
         />
       </div>
 
-      {/* 弹窗 */}
-      <NotificationCenter
-        open={notificationOpen}
-        onClose={() => setNotificationOpen(false)}
-      />
+      {/* 设置对话框 */}
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         currentUser={currentUser}
         onUpdateProfile={handleUpdateProfile}
       />
-      {/*{currentUser.role === 'admin' && (*/}
-      {/*  <AdminDialog open={adminOpen} onClose={() => setAdminOpen(false)} />*/}
-      {/*)}*/}
+
+      {/* 管理员面板 */}
+      {currentUser.isAdmin && (
+        <AdminPanel
+          open={adminPanelOpen}
+          onClose={() => setAdminPanelOpen(false)}
+        />
+      )}
+
+      {/* 通知中心 */}
+      <NotificationCenter
+        open={notificationCenterOpen}
+        onClose={() => setNotificationCenterOpen(false)}
+      />
+
+      {/* 视频/语音通话 */}
       {selectedContact && (
         <VideoCallDialog
           open={videoCallOpen}
