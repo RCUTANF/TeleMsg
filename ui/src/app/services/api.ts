@@ -304,7 +304,7 @@ class ApiService {
 
     const token = localStorage.getItem('auth_token');
     // 简单处理 http -> ws, https -> wss
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    //const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     // 假设 API URL 是 http://localhost:8080/api，我们需要 ws://localhost:8080/ws
     // 这里做个简单的替换逻辑，你需要根据实际部署情况调整
     const wsBaseUrl = this.baseUrl.replace(/^http/, 'ws').replace(/\/api$/, '');
