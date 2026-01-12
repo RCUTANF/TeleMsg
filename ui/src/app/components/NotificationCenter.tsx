@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -11,15 +11,17 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { 
-  Bell, 
-  MessageSquare, 
-  UserPlus, 
-  FileText, 
+import {
+  Bell,
+  MessageSquare,
+  UserPlus,
+  FileText,
   Video,
   Trash2,
   CheckCheck
 } from 'lucide-react';
+import { apiService } from '../services/api';
+import { toast } from 'sonner';
 
 interface Notification {
   id: string;
@@ -37,52 +39,102 @@ interface NotificationCenterProps {
 }
 
 export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'message',
-      title: '张三',
-      content: '发送了一条消息：您好，关于项目的进度...',
-      time: '2分钟前',
-      read: false,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangsan'
-    },
-    {
-      id: '2',
-      type: 'file',
-      title: '李四',
-      content: '发送了文件：项目需求文档.pdf',
-      time: '15分钟前',
-      read: false,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lisi'
-    },
-    {
-      id: '3',
-      type: 'call',
-      title: '王五',
-      content: '未接来电 (语音通话)',
-      time: '1小时前',
-      read: true,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wangwu'
-    },
-    {
-      id: '4',
-      type: 'friend_request',
-      title: '赵六',
-      content: '请求添加您为好友',
-      time: '3小时前',
-      read: false,
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhaoliu'
-    },
-    {
-      id: '5',
-      type: 'system',
-      title: '系统通知',
-      content: '您的账户安全设置已更新',
-      time: '昨天',
-      read: true
-    },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [_isLoading, setIsLoading] = useState(false);
+
+  // 加载通知
+  useEffect(() => {
+    if (open) {
+      loadNotifications();
+    }
+  }, [open]);
+
+  const loadNotifications = async () => {
+    setIsLoading(true);
+    try {
+      const data = await apiService.getNotifications();
+      // 将 API 数据映射到组件需要的格式
+      setNotifications(data.map(n => ({
+        id: n.id,
+        type: mapNotificationType(n.type),
+        title: n.title,
+        content: n.content,
+        time: formatTime(n.timestamp),
+        read: n.read,
+        avatar: n.data?.avatar
+      })));
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+      toast.error('加载通知失败');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 映射通知类型
+  const mapNotificationType = (type: string): Notification['type'] => {
+    switch (type) {
+      case 'message': return 'message';
+      case 'approval': return 'system';
+      case 'warning': return 'system';
+      default: return 'system';
+    }
+  };
+
+  // 格式化时间
+  const formatTime = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+
+    if (minutes < 1) return '刚刚';
+    if (minutes < 60) return `${minutes}分钟前`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}小时前`;
+
+    const days = Math.floor(hours / 24);
+    if (days === 1) return '昨天';
+    if (days < 7) return `${days}天前`;
+
+    return date.toLocaleDateString('zh-CN');
+  };
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await apiService.markNotificationAsRead(notificationId);
+      setNotifications(notifications.map(n =>
+        n.id === notificationId ? { ...n, read: true } : n
+      ));
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+      toast.error('标记失败');
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await apiService.markAllNotificationsAsRead();
+      setNotifications(notifications.map(n => ({ ...n, read: true })));
+      toast.success('已全部标记为已读');
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+      toast.error('操作失败');
+    }
+  };
+
+  const handleDelete = async (notificationId: string) => {
+    try {
+      await apiService.deleteNotification(notificationId);
+      setNotifications(notifications.filter(n => n.id !== notificationId));
+      toast.success('通知已删除');
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      toast.error('删除失败');
+    }
+  };
+
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -99,20 +151,6 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
       case 'system':
         return <Bell className="h-5 w-5 text-gray-600" />;
     }
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    ));
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-  };
-
-  const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
   };
 
   const unreadNotifications = notifications.filter(n => !n.read);
@@ -140,10 +178,10 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
 
         <div className="mt-6 space-y-4">
           {unreadCount > 0 && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full"
-              onClick={markAllAsRead}
+              onClick={handleMarkAllAsRead}
             >
               <CheckCheck className="h-4 w-4 mr-2" />
               全部标记为已读
@@ -171,8 +209,8 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
                       <NotificationItem
                         key={notification.id}
                         notification={notification}
-                        onMarkAsRead={markAsRead}
-                        onDelete={deleteNotification}
+                        onMarkAsRead={handleMarkAsRead}
+                        onDelete={handleDelete}
                         getIcon={getNotificationIcon}
                       />
                     ))
@@ -194,8 +232,8 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
                       <NotificationItem
                         key={notification.id}
                         notification={notification}
-                        onMarkAsRead={markAsRead}
-                        onDelete={deleteNotification}
+                        onMarkAsRead={handleMarkAsRead}
+                        onDelete={handleDelete}
                         getIcon={getNotificationIcon}
                       />
                     ))
@@ -217,14 +255,14 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
                       <NotificationItem
                         key={notification.id}
                         notification={notification}
-                        onMarkAsRead={markAsRead}
-                        onDelete={deleteNotification}
+                        onMarkAsRead={handleMarkAsRead}
+                        onDelete={handleDelete}
                         getIcon={getNotificationIcon}
                       />
                     ))
                   ) : (
                     <div className="text-center py-8 text-gray-500">
-                      <p>暂无已读通知</p>
+                      <p>没有已读通知</p>
                     </div>
                   )}
                 </div>
@@ -241,7 +279,7 @@ interface NotificationItemProps {
   notification: Notification;
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
-  getIcon: (type: Notification['type']) => JSX.Element;
+  getIcon: (type: Notification['type']) => React.ReactElement;
 }
 
 function NotificationItem({ notification, onMarkAsRead, onDelete, getIcon }: NotificationItemProps) {
@@ -302,3 +340,4 @@ function NotificationItem({ notification, onMarkAsRead, onDelete, getIcon }: Not
     </div>
   );
 }
+

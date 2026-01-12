@@ -7,7 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { MessageSquare, Lock, User } from 'lucide-react';
 
 interface LoginPageProps {
-  onLogin: (user: { id: string; name: string; username: string; avatar: string }) => void;
+  onLogin: (user: {
+    id: string;
+    name: string;
+    username: string;
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${string}`;
+    isAdmin: boolean
+  }) => void;
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
@@ -24,7 +30,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       id: '1',
       name: loginUsername,
       username: loginUsername,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${loginUsername}`
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${loginUsername}`,
+      isAdmin:true
     });
   };
 
@@ -35,7 +42,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       id: '1',
       name: registerName,
       username: registerUsername,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${registerUsername}`
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${registerUsername}`,
+      isAdmin:true
     });
   };
 

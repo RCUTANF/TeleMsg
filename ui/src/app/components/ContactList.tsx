@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
-import { Search, Users, MessageCircle, User } from 'lucide-react';
+import { Search, Users, MessageCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 
 export interface Contact {
@@ -30,7 +30,6 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
   };
 
   const recentChats = contacts.filter(c => c.lastMessage);
-  const allContacts = contacts;
 
   return (
     <div className="w-80 border-r bg-gray-50/50 flex flex-col h-full">
@@ -95,8 +94,8 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-semibold text-sm truncate">{contact.name}</span>
-                        {contact.unreadCount && contact.unreadCount > 0 && (
-                          <Badge variant="default" className="ml-2 bg-blue-600 text-white">
+                        {typeof contact.unreadCount === 'number' && contact.unreadCount > 0 && (
+                          <Badge variant="default" className="ml-2 bg-red-600 text-white">
                             {contact.unreadCount}
                           </Badge>
                         )}
@@ -118,7 +117,7 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
         <TabsContent value="contacts" className="flex-1 mt-0">
           <ScrollArea className="h-full">
             <div className="divide-y">
-              {allContacts.map((contact) => (
+              {contacts.map((contact) => (
                 <button
                   key={contact.id}
                   onClick={() => onSelectContact(contact.id)}
