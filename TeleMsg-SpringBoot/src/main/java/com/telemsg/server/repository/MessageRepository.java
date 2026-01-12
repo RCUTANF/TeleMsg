@@ -107,4 +107,13 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
            "(m.groupId IN (SELECT gm.groupId FROM GroupMember gm WHERE gm.userId = :userId))) " +
            "ORDER BY m.createTime DESC")
     List<Message> searchMessages(String userId, String keyword);
+
+    /**
+     * 获取私聊消息列表（限制数量）
+     */
+    @Query("SELECT m FROM Message m WHERE m.groupId IS NULL AND " +
+           "((m.senderId = :userId1 AND m.receiverId = :userId2) OR " +
+           "(m.senderId = :userId2 AND m.receiverId = :userId1)) AND " +
+           "m.deleted = false ORDER BY m.createTime DESC")
+    List<Message> findPrivateMessagesByUsers(String userId1, String userId2, Pageable pageable);
 }

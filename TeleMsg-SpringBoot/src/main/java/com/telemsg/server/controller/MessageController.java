@@ -2,6 +2,7 @@ package com.telemsg.server.controller;
 
 import com.telemsg.server.entity.Message;
 import com.telemsg.server.service.MessageService;
+import com.telemsg.server.service.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -13,7 +14,10 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -29,9 +33,81 @@ import java.util.stream.Collectors;
 public class MessageController {
 
     private final MessageService messageService;
+    private final JwtService jwtService;
 
     /**
-     * 发送私聊消息
+     * 获取与某个联系人的消息历史
+     */
+    @GetMapping("/{contactId}")
+    public ResponseEntity<?> getMessages(@RequestHeader("Authorization") String authHeader,
+                                       @PathVariable String contactId) {
+        try {
+            String currentUserId = extractUserIdFromToken(authHeader);
+
+            // 获取私聊消息
+            List<Message> messages = messageService.getPrivateMessages(currentUserId, contactId, 50);
+
+            List<Map<String, Object>> messageResponses = messages.stream()
+                .map(this::convertToClientResponse)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(messageResponses);
+
+        } catch (Exception e) {
+            log.error("获取消息失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "获取消息失败"));
+        }
+    }
+
+    /**
+     * 发送消息
+     */
+    @PostMapping
+    public ResponseEntity<?> sendMessage(@RequestHeader("Authorization") String authHeader,
+                                       @RequestBody @Validated SendMessageRequest request) {
+        try {
+            String senderId = extractUserIdFromToken(authHeader);
+
+            Message message = messageService.sendPrivateMessage(
+                senderId,
+                request.getRecipientId(),
+                Message.MessageType.valueOf(request.getType().toUpperCase()),
+                request.getContent(),
+                null // mediaUrl
+            );
+
+            Map<String, Object> response = convertToClientResponse(message);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("发送消息失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "发送消息失败"));
+        }
+    }
+
+    /**
+     * 标记消息为已读
+     */
+    @PutMapping("/{messageId}/read")
+    public ResponseEntity<?> markAsRead(@RequestHeader("Authorization") String authHeader,
+                                      @PathVariable String messageId) {
+        try {
+            String userId = extractUserIdFromToken(authHeader);
+
+            // 这里应该实现标记消息为已读的逻辑
+            messageService.markMessageAsRead(messageId, userId);
+
+            return ResponseEntity.ok(Map.of("message", "消息已标记为已读"));
+
+        } catch (Exception e) {
+            log.error("标记消息已读失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "操作失败"));
+        }
+    }
+
+    /**
+     * 发送私聊消息 (保留原有API)
      */
     @PostMapping("/private")
     public ResponseEntity<?> sendPrivateMessage(@RequestBody @Validated SendPrivateMessageRequest request) {
@@ -421,5 +497,67 @@ public class MessageController {
         // Getters and Setters
         public long getUnreadCount() { return unreadCount; }
         public void setUnreadCount(long unreadCount) { this.unreadCount = unreadCount; }
+    }
+
+    /**
+     * 从JWT token���提取用户ID
+     */
+    private String extractUserIdFromToken(String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
+                return jwtService.extractUserId(token);
+            } catch (Exception e) {
+                log.error("解析JWT token失败", e);
+                throw new RuntimeException("无效的认证token");
+            }
+        }
+        throw new RuntimeException("无效的认证token");
+    }
+
+    /**
+     * 转换为客户端期望的响应格式
+     */
+    private Map<String, Object> convertToClientResponse(Message message) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", message.getMessageId());
+        response.put("senderId", message.getSenderId());
+        response.put("content", message.getContent());
+        response.put("timestamp", message.getCreateTime().toInstant(ZoneOffset.UTC).toEpochMilli());
+        response.put("type", message.getMessageType().name().toLowerCase());
+
+        if (message.getMediaUrl() != null) {
+            response.put("fileUrl", message.getMediaUrl());
+        }
+        if (message.getFileName() != null) {
+            response.put("fileName", message.getFileName());
+        }
+        if (message.getFileSize() != null) {
+            response.put("fileSize", message.getFileSize().toString());
+        }
+
+        response.put("status", message.getStatus().name().toLowerCase());
+        return response;
+    }
+
+    // 新的客户端请求对象
+    public static class SendMessageRequest {
+        @NotBlank(message = "接收者ID不能为空")
+        private String recipientId;
+
+        @NotBlank(message = "消息内容不能为空")
+        private String content;
+
+        private String type = "text";
+
+        // Getters and Setters
+        public String getRecipientId() { return recipientId; }
+        public void setRecipientId(String recipientId) { this.recipientId = recipientId; }
+
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
+
+        public String getType() { return type; }
+        public void setType(String type) { this.type = type; }
     }
 }
