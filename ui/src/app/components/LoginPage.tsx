@@ -361,6 +361,5 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           © 2026 企业通讯平台 - 安全可靠的企业级通讯解决方案
         </p>
       </div>
-    </div>
   );
 }
