@@ -129,16 +129,14 @@ function App() {
 
   // 登录处理
   const handleLogin = async (user: User) => {
+    // LoginPage 已经完成了登录和token保存，这里只需要设置用户状态并加载数据
+    setCurrentUser(user);
     try {
-      const response = await apiService.login(user.username, 'password');
-      localStorage.setItem('auth_token', response.token);
-      setCurrentUser(response.user);
-      loadContacts();
-      connectWebSocket(response.user.id);
+      await loadContacts();
+      connectWebSocket(user.id);
     } catch (error) {
-      console.error('Login failed:', error);
-      // 降级到本地模式
-      setCurrentUser(user);
+      console.error('Failed to load contacts after login:', error);
+      toast.error('加载联系人失败，请刷新页面');
     }
   };
 
