@@ -114,6 +114,6 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query("SELECT m FROM Message m WHERE m.groupId IS NULL AND " +
            "((m.senderId = :userId1 AND m.receiverId = :userId2) OR " +
            "(m.senderId = :userId2 AND m.receiverId = :userId1)) AND " +
-           "m.deleted = false ORDER BY m.createTime DESC")
+           "m.deleted = false ORDER BY m.createTime ASC")
     List<Message> findPrivateMessagesByUsers(String userId1, String userId2, Pageable pageable);
 }

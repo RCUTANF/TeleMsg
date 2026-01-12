@@ -50,7 +50,7 @@ function App() {
     try {
       const user = await apiService.getCurrentUser();
       setCurrentUser(user);
-      loadContacts();
+      await loadContacts(user.id);
       connectWebSocket(user.id);
     } catch (error) {
       console.error('Failed to load user:', error);
@@ -81,12 +81,71 @@ function App() {
   };
 
   // 加载联系人列表
-  const loadContacts = async () => {
+  const loadContacts = async (userId?: string) => {
     try {
       const contactsData = await apiService.getContacts();
       setContacts(contactsData);
+
+      // 加载最近聊天记录
+      const userIdToUse = userId || currentUser?.id;
+      if (userIdToUse) {
+        await loadRecentChats(userIdToUse, contactsData);
+      }
     } catch (error) {
       console.error('Failed to load contacts:', error);
+    }
+  };
+
+  // 加载最近聊天记录并更新联系人
+  const loadRecentChats = async (userId: string, contactsList: Contact[]) => {
+    try {
+      const recentMessages = await apiService.getRecentChats(userId);
+
+      // 创建一个 Map 来存储每个联系人的最后一条消息
+      const lastMessageMap = new Map<string, { content: string; timestamp: Date }>();
+
+      recentMessages.forEach((msg: Message) => {
+        // 确定对话的另一方 ID
+        const otherUserId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+
+        if (otherUserId) {
+          // 只保留最新的消息
+          const existing = lastMessageMap.get(otherUserId);
+          if (!existing || msg.timestamp > existing.timestamp) {
+            lastMessageMap.set(otherUserId, {
+              content: msg.content,
+              timestamp: msg.timestamp
+            });
+          }
+        }
+      });
+
+      // 更新联系人列表，添加 lastMessage 和 lastMessageTime
+      const updatedContacts = contactsList.map((contact: Contact) => {
+        const lastMsg = lastMessageMap.get(contact.id);
+        if (lastMsg) {
+          return {
+            ...contact,
+            lastMessage: lastMsg.content,
+            lastMessageTime: lastMsg.timestamp
+          };
+        }
+        return contact;
+      });
+
+      // 按最后消息时间排序（有消息的在前）
+      updatedContacts.sort((a: any, b: any) => {
+        if (a.lastMessageTime && b.lastMessageTime) {
+          return b.lastMessageTime.getTime() - a.lastMessageTime.getTime();
+        }
+        if (a.lastMessageTime) return -1;
+        if (b.lastMessageTime) return 1;
+        return 0;
+      });
+
+      setContacts(updatedContacts);
+    } catch (error) {
+      console.error('Failed to load recent chats:', error);
     }
   };
 
@@ -111,13 +170,23 @@ function App() {
 
   // 更新联系人最后消息
   const updateContactLastMessage = (contactId: string, lastMessage: string) => {
-    setContacts((prev) =>
-      prev.map((c) =>
+    setContacts((prev) => {
+      const updated = prev.map((c) =>
         c.id === contactId
-          ? { ...c, lastMessage, unreadCount: (c.unreadCount || 0) + 1 }
+          ? { ...c, lastMessage, lastMessageTime: new Date(), unreadCount: (c.unreadCount || 0) + 1 }
           : c
-      )
-    );
+      );
+
+      // 重新排序，将有消息的联系人按时间排在前面
+      return updated.sort((a: any, b: any) => {
+        if (a.lastMessageTime && b.lastMessageTime) {
+          return b.lastMessageTime.getTime() - a.lastMessageTime.getTime();
+        }
+        if (a.lastMessageTime) return -1;
+        if (b.lastMessageTime) return 1;
+        return 0;
+      });
+    });
   };
 
   // 更新联系人状态
@@ -132,7 +201,7 @@ function App() {
     // LoginPage 已经完成了登录和token保存，这里只需要设置用户状态并加载数据
     setCurrentUser(user);
     try {
-      await loadContacts();
+      await loadContacts(user.id);
       connectWebSocket(user.id);
     } catch (error) {
       console.error('Failed to load contacts after login:', error);
