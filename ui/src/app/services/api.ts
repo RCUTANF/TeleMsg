@@ -6,6 +6,11 @@ export interface User {
   username: string;
   avatar: string;
   role?: string;
+  department?: string;
+  status?: 'active' | 'inactive' | 'suspended';
+  isAdmin?: boolean;
+  lastActive?: string;
+  createdAt?: string;
 }
 
 export interface Contact {
@@ -29,6 +34,75 @@ export interface Message {
   fileSize?: string;
   status: 'sending' | 'sent' | 'read';
 }
+// 登录/注册响应接口
+interface AuthResponse {
+    token: string;
+    user: User;
+}
+export interface Department {
+  id: string;
+  name: string;
+  parent?: string;
+  manager: string;
+  memberCount: number;
+  description?: string;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string;
+  userCount: number;
+  permissions: string[];
+}
+
+export interface Permission {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+export interface SystemStats {
+  totalUsers: number;
+  onlineUsers: number;
+  totalMessages: number;
+  storageUsed: number;
+  totalDepartments?: number;
+  totalRoles?: number;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  type: string;
+  requesterId: string;
+  requesterName: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  data: any;
+  comment?: string;
+  reason?: string;
+}
+
+export interface OperationLog {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  details: string;
+  timestamp: string;
+  ipAddress?: string;
+}
+
+export interface Notification {
+  id: string;
+  type: 'message' | 'system' | 'approval' | 'warning';
+  title: string;
+  content: string;
+  timestamp: string;
+  read: boolean;
+  data?: any;
+}
 
 // 登录/注册响应接口
 interface AuthResponse {
@@ -42,7 +116,7 @@ class ApiService {
   private wsMessageHandler: ((data: any) => void) | null = null;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    this.baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080/api';
   }
 
   // 核心请求方法封装
@@ -115,7 +189,7 @@ class ApiService {
   // ==========================================
   // 用户与联系人
   // ==========================================
-
+//TODO(me接口未实现）
   async getCurrentUser(): Promise<User> {
     // 假设获取当前用户信息的接口是 /users/me
     return this.request<User>('/users/me');
@@ -246,7 +320,7 @@ class ApiService {
 
     const token = localStorage.getItem('auth_token');
     // 简单处理 http -> ws, https -> wss
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    //const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     // 假设 API URL 是 http://localhost:8080/api，我们需要 ws://localhost:8080/ws
     // 这里做个简单的替换逻辑，你需要根据实际部署情况调整
     const wsBaseUrl = this.baseUrl.replace(/^http/, 'ws').replace(/\/api$/, '');
@@ -327,8 +401,341 @@ class ApiService {
     onlineUsers: number;
     totalMessages: number;
     storageUsed: number;
+    totalDepartments?: number;
+    totalRoles?: number;
   }> {
-    return this.request('/admin/stats');
+    try {
+      return await this.request('/admin/stats');
+    } catch (error) {
+      console.warn('后端不可用，使用模拟数据:', error);
+      return {
+        totalUsers: 247,
+        onlineUsers: 189,
+        totalMessages: 15420,
+        storageUsed: 45.6,
+        totalDepartments: 12,
+        totalRoles: 5
+      };
+    }
+  }
+
+  // 部门管理
+  async getDepartments(): Promise<Department[]> {
+    try {
+      return await this.request('/admin/departments');
+    } catch (error) {
+      console.warn('后端不可用，使用模拟数据:', error);
+      return [
+        { id: '1', name: '技术部', manager: '张三', memberCount: 45 },
+        { id: '2', name: '市场部', manager: '李四', memberCount: 32, parent: '1' },
+        { id: '3', name: '人力资源部', manager: '王五', memberCount: 18 },
+        { id: '4', name: '财务部', manager: '赵六', memberCount: 12 }
+      ];
+    }
+  }
+
+  async createDepartment(name: string, manager: string, parent?: string): Promise<Department> {
+    return this.request('/admin/departments', {
+      method: 'POST',
+      body: JSON.stringify({ name, manager, parent }),
+    });
+  }
+
+  async updateDepartment(departmentId: string, updates: Partial<Department>): Promise<Department> {
+    return this.request(`/admin/departments/${departmentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteDepartment(departmentId: string): Promise<void> {
+    await this.request(`/admin/departments/${departmentId}`, { method: 'DELETE' });
+  }
+
+  async getDepartmentMembers(departmentId: string): Promise<User[]> {
+    try {
+      return await this.request(`/admin/departments/${departmentId}/members`);
+    } catch (error) {
+      console.warn('后端不可用，使用模拟数据:', error);
+      return [
+        {
+          id: '1',
+          name: '张三',
+          username: 'zhangsan',
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangsan',
+          role: '系统管理员',
+          department: '技术部',
+          status: 'active'
+        },
+        {
+          id: '3',
+          name: '王五',
+          username: 'wangwu',
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wangwu',
+          role: '普通员工',
+          department: '技术部',
+          status: 'active'
+        }
+      ];
+    }
+  }
+
+  async addDepartmentMember(departmentId: string, userId: string): Promise<void> {
+    await this.request(`/admin/departments/${departmentId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  async removeDepartmentMember(departmentId: string, userId: string): Promise<void> {
+    await this.request(`/admin/departments/${departmentId}/members/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 角色管理
+  async getRoles(): Promise<Role[]> {
+    try {
+      return await this.request('/admin/roles');
+    } catch (error) {
+      console.warn('后端不可用，使用模拟数据:', error);
+      return [
+        {
+          id: '1',
+          name: '系统管理员',
+          description: '全局审批 + 最终决策权',
+          userCount: 3,
+          permissions: ['全系统审批', '最终决策权', '人员管理', '数据管理']
+        },
+        {
+          id: '2',
+          name: '部门主管',
+          description: '本部门审批 + 跨部门申请发起',
+          userCount: 8,
+          permissions: ['本部门审批', '跨部门申请', '群聊创建']
+        },
+        {
+          id: '3',
+          name: '普通员工',
+          description: '基础聊天功能',
+          userCount: 45,
+          permissions: ['发起申请', '查看个人数据']
+        }
+      ];
+    }
+  }
+
+  async createRole(name: string, description: string, permissions: string[]): Promise<Role> {
+    return this.request('/admin/roles', {
+      method: 'POST',
+      body: JSON.stringify({ name, description, permissions }),
+    });
+  }
+
+  async updateRole(roleId: string, updates: Partial<Role>): Promise<Role> {
+    return this.request(`/admin/roles/${roleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteRole(roleId: string): Promise<void> {
+    await this.request(`/admin/roles/${roleId}`, { method: 'DELETE' });
+  }
+
+  async getRoleMembers(roleId: string): Promise<User[]> {
+    try {
+      return await this.request(`/admin/roles/${roleId}/members`);
+    } catch (error) {
+      console.warn('后端不可用，使用模拟数据:', error);
+      // 根据角色 ID 返回不同的模拟数据
+      if (roleId === '1') {
+        return [
+          {
+            id: '1',
+            name: '张三',
+            username: 'zhangsan',
+            avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangsan',
+            role: '系统管理员',
+            department: '技术部',
+            status: 'active'
+          }
+        ];
+      }
+      return [
+        {
+          id: '2',
+          name: '李四',
+          username: 'lisi',
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lisi',
+          department: '市场部',
+          status: 'active'
+        }
+      ];
+    }
+  }
+
+  async assignUserRole(userId: string, roleId: string): Promise<void> {
+    await this.request(`/admin/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ roleId }),
+    });
+  }
+
+  async getRolePermissions(roleId: string): Promise<Permission[]> {
+    try {
+      return await this.request(`/admin/roles/${roleId}/permissions`);
+    } catch (error) {
+      // 开发模式：如果后端不可用，返回模拟数据
+      console.warn('后端不可用，使用本地模拟模式:', error);
+
+      // 尝试从本地存储读取
+      const mockKey = `mock_role_permissions_${roleId}`;
+      const savedData = localStorage.getItem(mockKey);
+
+      if (savedData) {
+        const permissionIds = JSON.parse(savedData);
+        // 返回简单的权限对象数组
+        return permissionIds.map((id: string) => ({
+          id,
+          name: id.split('.').pop() || id,
+          description: `权限 ${id}`,
+          category: id.split('.')[0] || 'default'
+        }));
+      }
+
+      // 返回空数组，表示没有权限
+      return [];
+    }
+  }
+
+  async updateRolePermissions(roleId: string, permissionIds: string[]): Promise<void> {
+    try {
+      await this.request(`/admin/roles/${roleId}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({ permissionIds }),
+      });
+    } catch (error) {
+      // 开发模式：如果后端不可用，使用本地存储模拟
+      console.warn('后端不可用，使用本地模拟模式:', error);
+
+      // 保存到本地存储
+      const mockKey = `mock_role_permissions_${roleId}`;
+      localStorage.setItem(mockKey, JSON.stringify(permissionIds));
+
+      // 模拟延迟
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      console.log(`权限已保存到本地存储 (角色 ${roleId}):`, permissionIds);
+    }
+  }
+
+  // 权限管理
+  async getAllPermissions(): Promise<Permission[]> {
+    return this.request('/admin/permissions');
+  }
+
+  async getUserPermissions(userId: string): Promise<Permission[]> {
+    return this.request(`/admin/users/${userId}/permissions`);
+  }
+
+  // 审批管理
+  async getApprovalRequests(status?: 'pending' | 'approved' | 'rejected'): Promise<ApprovalRequest[]> {
+    const query = status ? `?status=${status}` : '';
+    return this.request(`/admin/approvals${query}`);
+  }
+
+  async approveRequest(requestId: string, comment?: string): Promise<void> {
+    await this.request(`/admin/approvals/${requestId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    });
+  }
+
+  async rejectRequest(requestId: string, reason: string): Promise<void> {
+    await this.request(`/admin/approvals/${requestId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async createApprovalRequest(type: string, data: any): Promise<ApprovalRequest> {
+    return this.request('/admin/approvals', {
+      method: 'POST',
+      body: JSON.stringify({ type, data }),
+    });
+  }
+
+  // 操作日志
+  async getOperationLogs(filters?: {
+    userId?: string;
+    action?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<OperationLog[]> {
+    const query = new URLSearchParams(filters as any).toString();
+    return this.request(`/admin/logs${query ? `?${query}` : ''}`);
+  }
+
+  async exportLogs(filters?: any): Promise<Blob> {
+    const query = new URLSearchParams(filters).toString();
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${this.baseUrl}/admin/logs/export${query ? `?${query}` : ''}`, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed! status: ${response.status}`);
+    }
+
+    return response.blob();
+  }
+
+  // 用户管理（更新）
+  async updateUserStatus(userId: string, status: 'active' | 'inactive' | 'suspended'): Promise<User> {
+    return this.request(`/admin/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async updateUserDepartment(userId: string, departmentId: string): Promise<User> {
+    return this.request(`/admin/users/${userId}/department`, {
+      method: 'PUT',
+      body: JSON.stringify({ departmentId }),
+    });
+  }
+
+  async resetUserPassword(userId: string, newPassword: string): Promise<void> {
+    await this.request(`/admin/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ newPassword }),
+    });
+  }
+
+  // 通知管理
+  async getNotifications(): Promise<Notification[]> {
+    return this.request('/notifications');
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    await this.request(`/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+  }
+
+  async markAllNotificationsAsRead(): Promise<void> {
+    await this.request('/notifications/read-all', {
+      method: 'PUT',
+    });
+  }
+
+  async deleteNotification(notificationId: string): Promise<void> {
+    await this.request(`/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
   }
 }
 

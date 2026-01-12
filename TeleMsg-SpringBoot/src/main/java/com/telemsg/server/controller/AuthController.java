@@ -114,6 +114,9 @@ public class AuthController {
         response.put("username", user.getUsername());
         response.put("avatar", user.getAvatar() != null ? user.getAvatar() : "");
         response.put("role", "user");
+        // 添加 isAdmin 字段，默认为 false
+        // TODO: 后续可以从 User 实体或角色表中获取真实的管理员状态
+        response.put("isAdmin", false);
         return response;
     }
 

@@ -9,7 +9,13 @@ import { Alert, AlertDescription } from './ui/alert';
 import { apiService } from '../services/api';
 
 interface LoginPageProps {
-  onLogin: (user: { id: string; name: string; username: string; avatar: string }) => void;
+  onLogin: (user: {
+    id: string;
+    name: string;
+    username: string;
+    avatar: string;
+    isAdmin: boolean
+  }) => void;
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
@@ -62,7 +68,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         id: response.user.id,
         name: response.user.name || response.user.username,
         username: response.user.username,
-        avatar: response.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${response.user.username}`
+        avatar: response.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${response.user.username}`,
+        isAdmin:response.user.isAdmin??false
       });
 
       setSuccessMessage('登录成功！');
@@ -136,7 +143,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           id: response.user.id,
           name: response.user.name || registerName,
           username: response.user.username,
-          avatar: response.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${registerUsername}`
+          avatar: response.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${registerUsername}`,
+          isAdmin:response.user.isAdmin??false
         });
 
         setSuccessMessage('注册成功！');
@@ -349,10 +357,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </CardContent>
           </Card>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
-            © 2024 企业通讯平台 - 安全可靠的企业级通讯解决方案
-          </p>
-        </div>
+        <p className="text-center text-sm text-gray-500 mt-6">
+          © 2026 企业通讯平台 - 安全可靠的企业级通讯解决方案
+        </p>
       </div>
   );
 }
