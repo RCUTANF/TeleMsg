@@ -104,6 +104,12 @@ export interface Notification {
   data?: any;
 }
 
+// 登录/注册响应接口
+interface AuthResponse {
+  token: string;
+  user: User;
+}
+
 class ApiService {
   private baseUrl: string;
   private ws: WebSocket | null = null;
@@ -119,6 +125,7 @@ class ApiService {
       options: RequestInit = {}
   ): Promise<T> {
     const token = localStorage.getItem('auth_token');
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json', // 明确告诉后端我们需要 JSON
@@ -138,6 +145,16 @@ class ApiService {
     } catch (e) {
       data = {}; // 防止解析空响应报错
     }
+
+    // 统一错误处理
+    if (!response.ok) {
+      // 优先使用后端返回的 error 字段 (符合 API 文档)
+      // 其次尝试 message 字段
+      // 最后使用 HTTP 状态码
+      const errorMessage = data.error || data.message || `请求失败 (${response.status})`;
+      throw new Error(errorMessage);
+    }
+
     return data as T;
   }
 
@@ -185,7 +202,6 @@ class ApiService {
     });
   }
 
-  // 联系人相关
   async getContacts(): Promise<Contact[]> {
     return this.request<Contact[]>('/contacts');
   }
@@ -350,7 +366,6 @@ class ApiService {
       this.wsMessageHandler = null; // 清除 handler 防止触发重连
       this.ws.close();
       this.ws = null;
-      this.wsMessageHandler = null;
     }
   }
 
@@ -367,48 +382,7 @@ class ApiService {
   // ==========================================
 
   async getAllUsers(): Promise<User[]> {
-    try {
-        return this.request<User[]>('/admin/users');
-    } catch (error) {
-      console.warn('后端不可用，使用模拟数据:', error);
-      // 返回模拟用户数据
-      return [
-        {
-          id: '1',
-          name: '张三',
-          username: 'zhangsan',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangsan',
-          role: '系统管理员',
-          department: '技术部',
-          status: 'active',
-          isAdmin: true,
-          lastActive: '刚刚',
-          createdAt: '2024-01-15'
-        },
-        {
-          id: '2',
-          name: '李四',
-          username: 'lisi',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lisi',
-          role: '部门主管',
-          department: '市场部',
-          status: 'active',
-          lastActive: '5分钟前',
-          createdAt: '2024-02-20'
-        },
-        {
-          id: '3',
-          name: '王五',
-          username: 'wangwu',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wangwu',
-          role: '普通员工',
-          department: '技术部',
-          status: 'inactive',
-          lastActive: '2小时前',
-          createdAt: '2024-03-10'
-        }
-      ];
-    }
+    return this.request<User[]>('/admin/users');
   }
 
   async deleteUser(userId: string): Promise<void> {
