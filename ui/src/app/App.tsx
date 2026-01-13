@@ -33,6 +33,33 @@ interface DiscussionSpace {
   description?: string;
 }
 
+// Security policy type definition
+interface SecurityPolicy {
+  password: {
+    minLength: string;
+    requireLetters: boolean;
+    requireNumbers: boolean;
+    requireSpecialChars: boolean;
+    expirationDays: number;
+  };
+  login: {
+    allowMultiDevice: boolean;
+    maxDevices: string;
+    ipRestriction: boolean;
+    sessionTimeout: number;
+  };
+  content: {
+    enableSensitiveWordFilter: boolean;
+    enableFileScan: boolean;
+    enableImageRecognition: boolean;
+  };
+  data: {
+    enableEndToEndEncryption: boolean;
+    enableAutoBackup: boolean;
+    retentionDays: string;
+  };
+}
+
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -47,6 +74,33 @@ function App() {
   const [isVoiceCall, setIsVoiceCall] = useState(false);
   const [createDiscussionSpaceOpen, setCreateDiscussionSpaceOpen] = useState(false);
   const [messagesByContact, setMessagesByContact] = useState<Record<string, Message[]>>({});
+
+  // Security policy state
+  const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy>({
+    password: {
+      minLength: '8',
+      requireLetters: true,
+      requireNumbers: true,
+      requireSpecialChars: true,
+      expirationDays: 90,
+    },
+    login: {
+      allowMultiDevice: true,
+      maxDevices: '3',
+      ipRestriction: false,
+      sessionTimeout: 30,
+    },
+    content: {
+      enableSensitiveWordFilter: true,
+      enableFileScan: true,
+      enableImageRecognition: false,
+    },
+    data: {
+      enableEndToEndEncryption: true,
+      enableAutoBackup: true,
+      retentionDays: '365',
+    },
+  });
 
   // 为每个讨论空间分别存储消息
   const [messagesByDiscussionSpace, setMessagesByDiscussionSpace] = useState<Record<string, Message[]>>({
@@ -160,6 +214,27 @@ function App() {
     }
   };
 
+  const handleCreateGroup = (name: string, members: string[]) => {
+    // 检查是否已存在同名群聊
+    const existingGroup = contacts.find(c => c.isGroup && c.name === name);
+    if (existingGroup) {
+      toast.error(`已存在名为 "${name}" 的群聊，请使用其他名称`);
+      return;
+    }
+
+    const newGroup: Contact = {
+      id: Date.now().toString(),
+      name,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+      status: 'online',
+      isGroup: true,
+      memberCount: members.length + 1, // 包含创建者
+      role: 'owner'
+    };
+    setContacts([...contacts, newGroup]);
+    toast.success(`群聊 "${name}" 已创建`);
+  };
+
   const handleAddDiscussionSpaceMember = async (spaceId: string, newMembers: string[]) => {
     try {
       // 调用 API 添加成员
@@ -221,6 +296,11 @@ function App() {
       console.error('Failed to remove member:', error);
       toast.error('移除成员失败，请重试');
     }
+  };
+
+  const handleSaveSecurityPolicy = (policy: SecurityPolicy) => {
+    setSecurityPolicy(policy);
+    toast.success('安全策略已成功保存');
   };
 
   // 加载联系人列表
@@ -621,7 +701,10 @@ function App() {
 
   // 如果管理中心打开，显示管理中心
   if (adminCenterOpen && currentUser.isAdmin) {
-    return <AdminCenter onClose={() => setAdminCenterOpen(false)} />;
+    return <AdminCenter
+        onClose={() => setAdminCenterOpen(false)}
+        onSaveSecurityPolicy={handleSaveSecurityPolicy}
+    />;
   }
 
   return (
@@ -692,6 +775,7 @@ function App() {
             onSelectContact={handleSelectContact}
             currentUser={currentUser}
             messagesByContact={messagesByContact}
+            onCreateGroup={handleCreateGroup}
           />
         </div>
 
@@ -723,6 +807,10 @@ function App() {
         currentUser={currentUser}
         onUpdateProfile={handleUpdateProfile}
         onUpdateProxySettings={handleUpdateProxySettings}
+        onChangePassword={(oldPassword, newPassword) => {
+          //TODO 这里可以添加与后端交互的逻辑
+        }}
+        securityPolicy={securityPolicy}
       />
 
       {/* 管理员面板 */}

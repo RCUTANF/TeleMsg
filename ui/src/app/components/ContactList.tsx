@@ -3,7 +3,10 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
-import { Search, Users, MessageCircle, X, FileText } from 'lucide-react';
+import { Search, Users, MessageCircle, User, X, FileText, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { Button } from './ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Checkbox } from './ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 
 export interface Contact {
@@ -38,19 +41,33 @@ interface ContactListProps {
   selectedContactId: string | null;
   onSelectContact: (contactId: string) => void;
   currentUser: { id: string; name: string; username: string; avatar: string };
-  messagesByContact?: Record<string, Message[]>;
+  messagesByContact?: Record<string, Message[]>;  onAddContact?: (contact: Omit<Contact, 'id'>) => void;
+  onCreateGroup?: (name: string, members: string[]) => void;
 }
 
-export function ContactList({ contacts, selectedContactId, onSelectContact, currentUser, messagesByContact = {} }: ContactListProps) {
+export function ContactList({
+                              contacts,
+                              selectedContactId,
+                              onSelectContact,
+                              currentUser,
+                              messagesByContact = {},
+                              onCreateGroup
+                            }: ContactListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'all' | 'contacts' | 'messages'>('all');
-
+  const [showContacts, setShowContacts] = useState(false);
+  const [showGroups, setShowGroups] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const statusColors = {
     online: 'bg-green-500',
     offline: 'bg-gray-400',
     busy: 'bg-red-500'
   };
 
+  const allContacts = contacts.filter(c => !c.isGroup); // 非群聊联系人
+  const allGroups = contacts.filter(c => c.isGroup); // 群聊
   // const recentChats = contacts.filter(c => c.lastMessage);
   const recentChats = contacts.filter(c => typeof c.lastMessage === 'string' && c.lastMessage.trim() !== ''); // 只显示有聊天记录的联系人
 
@@ -93,6 +110,24 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
     setSearchQuery('');
     setSearchMode('all');
   };
+
+  const handleCreateGroup = () => {
+    if (groupName.trim() && selectedMembers.length > 0) {
+      onCreateGroup?.(groupName.trim(), selectedMembers);
+      setCreateGroupOpen(false);
+      setGroupName('');
+      setSelectedMembers([]);
+    }
+  };
+
+  const toggleMemberSelection = (memberId: string) => {
+    setSelectedMembers(prev =>
+        prev.includes(memberId)
+            ? prev.filter(id => id !== memberId)
+            : [...prev, memberId]
+    );
+  };
+
   // 格式化时间显示
   const formatTime = (date?: Date) => {
     if (!date) return '';
@@ -186,7 +221,7 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
         )}
       </div>
 
-      {/* 联系人列表 */}
+      {/* 标签页 */}
       <Tabs defaultValue="chats" className="flex-1 flex flex-col">
         <TabsList className="w-full grid grid-cols-2 rounded-none border-b bg-white">
           <TabsTrigger value="chats" className="gap-2">
@@ -195,7 +230,7 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
           </TabsTrigger>
           <TabsTrigger value="contacts" className="gap-2">
             <Users className="h-4 w-4" />
-            <span>联系人</span>
+            <span>通讯录</span>
           </TabsTrigger>
         </TabsList>
 
@@ -244,7 +279,12 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
                               </div>
                               <div className="flex-1 min-w-0 text-left">
                                 <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-semibold text-sm">{highlightText(contact.name)}</span>
+                                  {/* 只在非消息模式下高亮联系人名称 */}
+                                  {searchMode !== 'messages' ? (
+                                      <span className="font-semibold text-sm">{highlightText(contact.name)}</span>
+                                  ) : (
+                                      <span className="font-semibold text-sm">{contact.name}</span>
+                                  )}
                                   {contact.isGroup && (
                                       <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700">
                                         {contact.memberCount}人
@@ -264,26 +304,29 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
                                   // 收集所有匹配的消息和文件
                                   const matchedItems: MatchedItem[] = [];
 
-                                  // 检查消息中的文件名称和消息内容
-                                  const contactMessages = messagesByContact[contact.id];
-                                  if (contactMessages) {
-                                    contactMessages.forEach(message => {
-                                      // 检查文件名称
-                                      if (message.fileName && message.fileName.toLowerCase().includes(query)) {
-                                        matchedItems.push({
-                                          type: 'file' as const,
-                                          content: message.fileName,
-                                          fileSize: message.fileSize
-                                        });
-                                      }
-                                      // 检查消息内容（仅文本消息）
-                                      if (message.type === 'text' && message.content.toLowerCase().includes(query)) {
-                                        matchedItems.push({
-                                          type: 'text' as const,
-                                          content: message.content
-                                        });
-                                      }
-                                    });
+                                  // 只在非联系人模式下收集消息匹配项
+                                  if (searchMode !== 'contacts') {
+                                    // 检查消息中的文件名称和消息内容
+                                    const contactMessages = messagesByContact[contact.id];
+                                    if (contactMessages) {
+                                      contactMessages.forEach(message => {
+                                        // 检查文件名称
+                                        if (message.fileName && message.fileName.toLowerCase().includes(query)) {
+                                          matchedItems.push({
+                                            type: 'file' as const,
+                                            content: message.fileName,
+                                            fileSize: message.fileSize
+                                          });
+                                        }
+                                        // 检查消息内容（仅文本消息）
+                                        if (message.type === 'text' && message.content.toLowerCase().includes(query)) {
+                                          matchedItems.push({
+                                            type: 'text' as const,
+                                            content: message.content
+                                          });
+                                        }
+                                      });
+                                    }
                                   }
 
                                   // 如果有匹配的内容，显示所有匹配项（最多显示5条）
@@ -346,7 +389,7 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
               </ScrollArea>
             </div>
         )}
-        {/* 正常聊天列表 */}
+        {/* 聊天标签页 */}
         {!searchQuery && (
             <>
         <TabsContent value="chats" className="flex-1 mt-0">
@@ -399,38 +442,189 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="contacts" className="flex-1 mt-0">
-          <ScrollArea className="h-full">
-            <div className="divide-y">
-              {contacts.map((contact) => (
-                <button
-                  key={contact.id}
-                  onClick={() => onSelectContact(contact.id)}
-                  className={`w-full p-4 flex items-center gap-3 hover:bg-gray-100 transition-colors ${
-                    selectedContactId === contact.id ? 'bg-blue-50 hover:bg-blue-50' : ''
-                  }`}
-                >
-                  <div className="relative">
-                    <Avatar>
-                      <AvatarImage src={contact.avatar} alt={contact.name} />
-                      <AvatarFallback>{contact.name[0]}</AvatarFallback>
-                    </Avatar>
-                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${statusColors[contact.status]}`} />
+              {/* 通讯录标签页 - 包含联系人和群聊 */}
+              <TabsContent value="contacts" className="flex-1 mt-0">
+                <ScrollArea className="h-full">
+                  {/* 创建群聊按钮 */}
+                  <div className="p-4 border-b">
+                    <Button
+                        className="w-full justify-center gap-2 bg-purple-600 hover:bg-purple-700"
+                        onClick={() => setCreateGroupOpen(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>创建群聊</span>
+                    </Button>
                   </div>
-                  <div className="flex-1 text-left">
-                    <div className="font-semibold text-sm">{contact.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {contact.status === 'online' ? '在线' : contact.status === 'busy' ? '忙碌' : `上次在线：${contact.lastSeen || '未知'}`}
-                    </div>
+
+                  {/* 联系人部分 */}
+                  <div className="border-b">
+                    <button
+                        className="w-full p-4 flex items-center justify-between hover:bg-gray-100 transition-colors"
+                        onClick={() => setShowContacts(!showContacts)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <User className="h-5 w-5 text-gray-500" />
+                        <span className="font-semibold text-sm">联系人</span>
+                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700">
+                          {allContacts.length}
+                        </Badge>
+                      </div>
+                      {showContacts ? (
+                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                      ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-500" />
+                      )}
+                    </button>
+
+                    {showContacts && (
+                        <div className="divide-y">
+                          {allContacts.map((contact) => (
+                              <button
+                                  key={contact.id}
+                                  onClick={() => onSelectContact(contact.id)}
+                                  className={`w-full p-4 flex items-center gap-3 hover:bg-gray-100 transition-colors ${
+                                      selectedContactId === contact.id ? 'bg-blue-50 hover:bg-blue-50' : ''
+                                  }`}
+                              >
+                                <div className="relative">
+                                  <Avatar>
+                                    <AvatarImage src={contact.avatar} alt={contact.name} />
+                                    <AvatarFallback>{contact.name[0]}</AvatarFallback>
+                                  </Avatar>
+                                  <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${statusColors[contact.status]}`} />
+                                </div>
+                                <div className="flex-1 text-left">
+                                  <div className="font-semibold text-sm">{contact.name}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {contact.status === 'online' ? '在线' : contact.status === 'busy' ? '忙碌' : '离线'}
+                                  </div>
+                                </div>
+                              </button>
+                          ))}
+                        </div>
+                    )}
                   </div>
-                </button>
-              ))}
-            </div>
-          </ScrollArea>
-        </TabsContent>
+
+                  {/* 群聊部分 */}
+                  <div>
+                    <button
+                        className="w-full p-4 flex items-center justify-between hover:bg-gray-100 transition-colors"
+                        onClick={() => setShowGroups(!showGroups)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <MessageCircle className="h-5 w-5 text-gray-500" />
+                        <span className="font-semibold text-sm">群聊</span>
+                        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700">
+                          {allGroups.length}
+                        </Badge>
+                      </div>
+                      {showGroups ? (
+                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                      ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-500" />
+                      )}
+                    </button>
+
+                    {showGroups && (
+                        <div className="divide-y">
+                          {allGroups.map((group) => (
+                              <button
+                                  key={group.id}
+                                  onClick={() => onSelectContact(group.id)}
+                                  className={`w-full p-4 flex items-center gap-3 hover:bg-gray-100 transition-colors ${
+                                      selectedContactId === group.id ? 'bg-blue-50 hover:bg-blue-50' : ''
+                                  }`}
+                              >
+                                <div className="relative">
+                                  <Avatar>
+                                    <AvatarImage src={group.avatar} alt={group.name} />
+                                    <AvatarFallback>{group.name[0]}</AvatarFallback>
+                                  </Avatar>
+                                  <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${statusColors[group.status]}`} />
+                                </div>
+                                <div className="flex-1 text-left">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-sm">{group.name}</span>
+                                    <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700">
+                                      {group.memberCount}人
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </button>
+                          ))}
+                        </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
             </>
-            )}
+        )}
       </Tabs>
+
+      {/* 创建群聊对话框 */}
+      <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>创建群聊</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">群聊名称</label>
+              <Input
+                  placeholder="请输入群聊名称"
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">选择成员</label>
+                <Badge variant="secondary" className="text-xs">
+                  {selectedMembers.length} 人已选择
+                </Badge>
+              </div>
+              <ScrollArea className="h-64 border rounded-md p-2">
+                {allContacts.map((contact) => (
+                    <div
+                        key={contact.id}
+                        className={`flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 ${
+                            selectedMembers.includes(contact.id) ? 'bg-blue-50' : ''
+                        }`}
+                    >
+                      <Checkbox
+                          id={`member-${contact.id}`}
+                          checked={selectedMembers.includes(contact.id)}
+                          onCheckedChange={() => toggleMemberSelection(contact.id)}
+                      />
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={contact.avatar} alt={contact.name} />
+                        <AvatarFallback>{contact.name[0]}</AvatarFallback>
+                      </Avatar>
+                      <label
+                          htmlFor={`member-${contact.id}`}
+                          className="flex-1 text-sm font-medium cursor-pointer"
+                      >
+                        {contact.name}
+                      </label>
+                    </div>
+                ))}
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateGroupOpen(false)}>
+              取消
+            </Button>
+            <Button
+                className="bg-purple-600 hover:bg-purple-700"
+                onClick={handleCreateGroup}
+                disabled={!groupName.trim() || selectedMembers.length === 0}
+            >
+              创建群聊
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

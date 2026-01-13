@@ -5,6 +5,7 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { apiService, User, Role, Department } from '../services/api';
+import { Toaster } from './ui/sonner';
 import { toast } from 'sonner';
 import {
   Table,
@@ -56,9 +57,36 @@ import { DepartmentEditDialog } from './DepartmentEditDialog';
 
 interface AdminCenterProps {
   onClose: () => void;
+  onSaveSecurityPolicy?: (policy: SecurityPolicy) => void;
 }
 
-export function AdminCenter({ onClose }: AdminCenterProps) {
+interface SecurityPolicy {
+  password: {
+    minLength: string;
+    requireLetters: boolean;
+    requireNumbers: boolean;
+    requireSpecialChars: boolean;
+    expirationDays: number;
+  };
+  login: {
+    allowMultiDevice: boolean;
+    maxDevices: string;
+    ipRestriction: boolean;
+    sessionTimeout: number;
+  };
+  content: {
+    enableSensitiveWordFilter: boolean;
+    enableFileScan: boolean;
+    enableImageRecognition: boolean;
+  };
+  data: {
+    enableEndToEndEncryption: boolean;
+    enableAutoBackup: boolean;
+    retentionDays: string;
+  };
+}
+
+export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps) {
   const [activeMenu, setActiveMenu] = useState('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [_isLoading, setIsLoading] = useState(false);
@@ -70,6 +98,33 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
   const [deptMembersOpen, setDeptMembersOpen] = useState(false);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptEditOpen, setDeptEditOpen] = useState(false);
+
+  // 安全策略状态
+  const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy>({
+    password: {
+      minLength: '8',
+      requireLetters: true,
+      requireNumbers: true,
+      requireSpecialChars: true,
+      expirationDays: 90,
+    },
+    login: {
+      allowMultiDevice: true,
+      maxDevices: '3',
+      ipRestriction: false,
+      sessionTimeout: 30,
+    },
+    content: {
+      enableSensitiveWordFilter: true,
+      enableFileScan: true,
+      enableImageRecognition: false,
+    },
+    data: {
+      enableEndToEndEncryption: true,
+      enableAutoBackup: true,
+      retentionDays: '365',
+    },
+  });
 
   // 数据状态
   const [users, setUsers] = useState<User[]>([]);
@@ -207,6 +262,7 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
+      <Toaster position="top-right" />
       {/* 顶部导航栏 */}
       <header className="h-16 bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-between px-6 shadow-lg shrink-0">
         <div className="flex items-center gap-4">
@@ -658,7 +714,13 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
                       <CardContent className="space-y-4">
                         <div className="space-y-2">
                           <Label>最小密码长度</Label>
-                          <Select defaultValue="8">
+                          <Select
+                              value={securityPolicy.password.minLength}
+                              onValueChange={(value) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                password: { ...prev.password, minLength: value }
+                              }))}
+                          >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -671,21 +733,53 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
+                            <Label>必须包含字母</Label>
+                            <p className="text-xs text-gray-500">密码中必须包含字母字符</p>
+                          </div>
+                          <Switch
+                              checked={securityPolicy.password.requireLetters}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                password: { ...prev.password, requireLetters: checked }
+                              }))}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
                             <Label>必须包含数字</Label>
                             <p className="text-xs text-gray-500">密码中必须包含数字字符</p>
                           </div>
-                          <Switch defaultChecked />
+                          <Switch
+                              checked={securityPolicy.password.requireNumbers}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                password: { ...prev.password, requireNumbers: checked }
+                              }))}
+                          />
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
                             <Label>必须包含特殊字符</Label>
                             <p className="text-xs text-gray-500">密码中必须包含特殊符号</p>
                           </div>
-                          <Switch defaultChecked />
+                          <Switch
+                              checked={securityPolicy.password.requireSpecialChars}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                password: { ...prev.password, requireSpecialChars: checked }
+                              }))}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>密码有效期（天）</Label>
-                          <Input type="number" defaultValue="90" />
+                          <Input
+                              type="number"
+                              value={securityPolicy.password.expirationDays}
+                              onChange={(e) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                password: { ...prev.password, expirationDays: parseInt(e.target.value) || 0 }
+                              }))}
+                          />
                         </div>
                       </CardContent>
                     </Card>
@@ -703,11 +797,23 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
                             <Label>允许多设备登录</Label>
                             <p className="text-xs text-gray-500">同一账号可在多个设备登录</p>
                           </div>
-                          <Switch defaultChecked />
+                          <Switch
+                              checked={securityPolicy.login.allowMultiDevice}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                login: { ...prev.login, allowMultiDevice: checked }
+                              }))}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>最大同时登录设备数</Label>
-                          <Select defaultValue="3">
+                          <Select
+                              value={securityPolicy.login.maxDevices}
+                              onValueChange={(value) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                login: { ...prev.login, maxDevices: value }
+                              }))}
+                          >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -724,11 +830,24 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
                             <Label>IP地址限制</Label>
                             <p className="text-xs text-gray-500">限制特定IP地址访问</p>
                           </div>
-                          <Switch />
+                          <Switch
+                              checked={securityPolicy.login.ipRestriction}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                login: { ...prev.login, ipRestriction: checked }
+                              }))}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>会话超时（分钟）</Label>
-                          <Input type="number" defaultValue="30" />
+                          <Input
+                              type="number"
+                              value={securityPolicy.login.sessionTimeout}
+                              onChange={(e) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                login: { ...prev.login, sessionTimeout: parseInt(e.target.value) || 0 }
+                              }))}
+                          />
                         </div>
                       </CardContent>
                     </Card>
@@ -746,21 +865,39 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
                             <Label>启用敏感词过滤</Label>
                             <p className="text-xs text-gray-500">自动过滤敏感词汇</p>
                           </div>
-                          <Switch defaultChecked />
+                          <Switch
+                              checked={securityPolicy.content.enableSensitiveWordFilter}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                content: { ...prev.content, enableSensitiveWordFilter: checked }
+                              }))}
+                          />
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
                             <Label>文件扫描</Label>
                             <p className="text-xs text-gray-500">扫描上传文件的安全性</p>
                           </div>
-                          <Switch defaultChecked />
+                          <Switch
+                              checked={securityPolicy.content.enableFileScan}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                content: { ...prev.content, enableFileScan: checked }
+                              }))}
+                          />
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
                             <Label>图片内容识别</Label>
                             <p className="text-xs text-gray-500">识别图片中的敏感内容</p>
                           </div>
-                          <Switch />
+                          <Switch
+                              checked={securityPolicy.content.enableImageRecognition}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                content: { ...prev.content, enableImageRecognition: checked }
+                              }))}
+                          />
                         </div>
                       </CardContent>
                     </Card>
@@ -778,18 +915,36 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
                             <Label>启用端到端加密</Label>
                             <p className="text-xs text-gray-500">消息端到端加密传输</p>
                           </div>
-                          <Switch defaultChecked />
+                          <Switch
+                              checked={securityPolicy.data.enableEndToEndEncryption}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                data: { ...prev.data, enableEndToEndEncryption: checked }
+                              }))}
+                          />
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
                             <Label>自动备份</Label>
                             <p className="text-xs text-gray-500">定期自动备份数据</p>
                           </div>
-                          <Switch defaultChecked />
+                          <Switch
+                              checked={securityPolicy.data.enableAutoBackup}
+                              onCheckedChange={(checked) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                data: { ...prev.data, enableAutoBackup: checked }
+                              }))}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>数据保留期（天）</Label>
-                          <Select defaultValue="365">
+                          <Select
+                              value={securityPolicy.data.retentionDays}
+                              onValueChange={(value) => setSecurityPolicy(prev => ({
+                                ...prev,
+                                data: { ...prev.data, retentionDays: value }
+                              }))}
+                          >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -806,7 +961,19 @@ export function AdminCenter({ onClose }: AdminCenterProps) {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button className="bg-purple-600 hover:bg-purple-700">保存安全策略</Button>
+                    <Button
+                        className="bg-purple-600 hover:bg-purple-700"
+                        onClick={() => {
+                          try {
+                            onSaveSecurityPolicy?.(securityPolicy);
+                            toast.success('安全策略保存成功！');
+                          } catch (error) {
+                            toast.error('安全策略保存失败，请重试。');
+                          }
+                        }}
+                    >
+                      保存安全策略
+                    </Button>
                   </div>
                 </div>
               )}
