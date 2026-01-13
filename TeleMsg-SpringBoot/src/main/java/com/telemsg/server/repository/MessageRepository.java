@@ -70,6 +70,13 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     long countUnreadPrivateMessages(String userId);
 
     /**
+     * 统计来自特定发送者的未读消息数量
+     */
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.receiverId = :receiverId AND m.senderId = :senderId AND " +
+           "m.groupId IS NULL AND m.status != 'READ' AND m.deleted = false")
+    long countUnreadMessagesFromSender(String receiverId, String senderId);
+
+    /**
      * 统计群聊未读消息数量
      */
     @Query("SELECT COUNT(m) FROM Message m WHERE m.groupId = :groupId AND m.senderId != :userId AND " +

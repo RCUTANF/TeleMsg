@@ -107,6 +107,16 @@ export interface Notification {
   data?: any;
 }
 
+export interface DiscussionSpace {
+  id: string;
+  name: string;
+  groupId: string;
+  creatorId: string;
+  members: string[];
+  createdAt: Date;
+  description?: string;
+}
+
 // 登录/注册响应接口
 interface AuthResponse {
   token: string;
@@ -249,6 +259,18 @@ class ApiService {
 
   async markMessageAsRead(messageId: string): Promise<void> {
     await this.request(`/messages/${messageId}/read`, { method: 'PUT' });
+  }
+
+  async markPrivateMessagesAsRead(senderId: string, receiverId: string): Promise<void> {
+    await this.request('/messages/private/read', {
+      method: 'PUT',
+      body: JSON.stringify({ senderId, receiverId }),
+    });
+  }
+
+  async getUnreadCountFromSender(receiverId: string, senderId: string): Promise<number> {
+    const response = await this.request<any>(`/messages/unread/${receiverId}/from/${senderId}`);
+    return response.data?.unreadCount || 0;
   }
 
   async getRecentChats(userId: string): Promise<Message[]> {
@@ -402,6 +424,92 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ callId }),
     });
+  }
+
+  // ==========================================
+  // Discussion Spaces
+  // ==========================================
+
+  async getDiscussionSpaces(groupId?: string): Promise<DiscussionSpace[]> {
+    const endpoint = groupId
+      ? `/discussion-spaces?groupId=${groupId}`
+      : '/discussion-spaces';
+    const response = await this.request<any>(endpoint);
+    // 转换日期字符串为 Date 对象
+    return (response.data || response).map((space: any) => ({
+      ...space,
+      createdAt: new Date(space.createdAt)
+    }));
+  }
+
+  async createDiscussionSpace(
+    name: string,
+    groupId: string,
+    members: string[],
+    description?: string
+  ): Promise<DiscussionSpace> {
+    const response = await this.request<any>('/discussion-spaces', {
+      method: 'POST',
+      body: JSON.stringify({ name, groupId, members, description }),
+    });
+    const space = response.data || response;
+    return {
+      ...space,
+      createdAt: new Date(space.createdAt)
+    };
+  }
+
+  async updateDiscussionSpace(
+    spaceId: string,
+    updates: Partial<DiscussionSpace>
+  ): Promise<DiscussionSpace> {
+    const response = await this.request<any>(`/discussion-spaces/${spaceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+    const space = response.data || response;
+    return {
+      ...space,
+      createdAt: new Date(space.createdAt)
+    };
+  }
+
+  async deleteDiscussionSpace(spaceId: string): Promise<void> {
+    await this.request(`/discussion-spaces/${spaceId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addDiscussionSpaceMembers(spaceId: string, memberIds: string[]): Promise<DiscussionSpace> {
+    const response = await this.request<any>(`/discussion-spaces/${spaceId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ memberIds }),
+    });
+    const space = response.data || response;
+    return {
+      ...space,
+      createdAt: new Date(space.createdAt)
+    };
+  }
+
+  async removeDiscussionSpaceMember(spaceId: string, memberId: string): Promise<DiscussionSpace> {
+    const response = await this.request<any>(`/discussion-spaces/${spaceId}/members/${memberId}`, {
+      method: 'DELETE',
+    });
+    const space = response.data || response;
+    return {
+      ...space,
+      createdAt: new Date(space.createdAt)
+    };
+  }
+
+  // ==========================================
+  // 群组相关
+  // ==========================================
+
+  async getGroupMembers(groupId: string): Promise<User[]> {
+    const response = await this.request<any>(`/groups/${groupId}/members`);
+    return response.data || response;
   }
 
   // ==========================================

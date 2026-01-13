@@ -307,6 +307,26 @@ public class MessageController {
     }
 
     /**
+     * 获取来自特定发送者的未读消息数
+     */
+    @GetMapping("/unread/{receiverId}/from/{senderId}")
+    public ResponseEntity<?> getUnreadCountFromSender(@PathVariable String receiverId,
+                                                       @PathVariable String senderId) {
+        try {
+            long unreadCount = messageService.countUnreadMessagesFromSender(receiverId, senderId);
+
+            UnreadCountResponse response = new UnreadCountResponse();
+            response.setUnreadCount(unreadCount);
+
+            return ResponseEntity.ok(ApiResponse.success("获取成功", response));
+
+        } catch (Exception e) {
+            log.error("获取未读消息统计失败: receiverId={}, senderId={}", receiverId, senderId, e);
+            return ResponseEntity.badRequest().body(ApiResponse.error("获取未读消息统计失败"));
+        }
+    }
+
+    /**
      * 转换为 MessageResponse 对象
      */
     private MessageResponse convertToResponse(Message message) {
