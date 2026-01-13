@@ -12,3 +12,5 @@
 /ui/package-lock.json
 /TeleMsg-SpringBoot/build/
 /logs/
+/TeleMsg-SpringBoot/logs/
+/TeleMsg-SpringBoot/lib/minio/data/
