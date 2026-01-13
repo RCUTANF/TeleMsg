@@ -15,3 +15,4 @@
 /TeleMsg-SpringBoot/logs/
 /TeleMsg-SpringBoot/lib/minio/data/
 /TeleMsg-SpringBoot/lib/minio/minio.exe
+/ui/dist-electron/

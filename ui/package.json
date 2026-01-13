@@ -1,11 +1,26 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "telemsg-desktop",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
+  "main": "public/electron.cjs",
+  "homepage": "./",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "electron": "electron .",
+    "wait-electron": "wait-on http://localhost:5173 --timeout 120000 && npm run electron",
+    "electron-dev": "concurrently \"npm run dev\" \"npm run wait-electron\" --kill-others-on-exit",
+    "electron-pack": "npm run build && electron-builder --dir",
+    "build:electron": "npm run build && electron-builder",
+    "start:pack": "npm run electron-pack && start dist-electron/win-unpacked/\"TeleMsg Desktop.exe\"",
+    "build:win": "npm run build && electron-builder --win --x64",
+    "build:mac": "npm run build && electron-builder --mac --x64 --arm64",
+    "build:linux": "npm run build && electron-builder --linux --x64",
+    "dist": "npm run build && electron-builder --publish=never",
+    "dist:win": "npm run build && electron-builder --win --publish=never",
+    "dist:mac": "npm run build && electron-builder --mac --publish=never",
+    "dist:linux": "npm run build && electron-builder --linux --publish=never"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -67,8 +82,12 @@
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "4.7.0",
+    "concurrently": "^9.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^25.1.8",
     "tailwindcss": "4.1.12",
-    "vite": "6.3.5"
+    "vite": "6.3.5",
+    "wait-on": "^8.0.1"
   },
   "peerDependencies": {
     "react": "18.3.1",
@@ -86,5 +105,83 @@
     "overrides": {
       "vite": "6.3.5"
     }
+  },
+  "build": {
+    "appId": "com.telemsg.desktop",
+    "productName": "TeleMsg Desktop",
+    "copyright": "Copyright © 2026 TeleMsg Team",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "public/electron.cjs",
+      "public/preload.cjs",
+      {
+        "from": "node_modules",
+        "filter": ["**/*"],
+        "to": "node_modules"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "public/icons",
+        "to": "icons"
+      }
+    ],
+    "extraMetadata": {
+      "main": "public/electron.cjs"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "TeleMsg Team",
+      "sign": false,
+      "verifyUpdateCodeSignature": false
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.social-networking",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/icons",
+      "category": "Network",
+      "synopsis": "Enterprise Communication Platform"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": true
+    },
+    "publish": null
   }
 }
