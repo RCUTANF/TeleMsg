@@ -1,16 +1,15 @@
 // ui/src/app/App.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { ContactList, Contact } from './components/ContactList';
 import { ChatArea, Message } from './components/ChatArea';
 import { SettingsDialog } from './components/SettingsDialog';
 import { AdminPanel } from './components/AdminPanel';
 import { AdminCenter } from './components/AdminCenter';
-import { NotificationCenter } from './components/NotificationCenter';
 import { VideoCallDialog } from './components/VideoCallDialog';
+import { DiscussionSpaceDialog } from './components/DiscussionSpaceDialog';
 import { Button } from './components/ui/button';
-import { Bell, Settings, Shield, LogOut, Menu, X } from 'lucide-react';
-import { Badge } from './components/ui/badge';
+import { Settings, Shield, LogOut, Menu, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiService } from './services/api';
 import { Toaster } from './components/ui/sonner';
@@ -21,27 +20,55 @@ interface User {
   username: string;
   avatar: string;
   isAdmin?: boolean;
+  role?: string; // For role-based access: 'director', 'manager', 'employee'
+}
+
+interface DiscussionSpace {
+  id: string;
+  name: string;
+  groupId: string; // The group chat this space belongs to
+  creatorId: string;
+  members: string[]; // User IDs
+  createdAt: Date;
+  description?: string;
 }
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
+  const [selectedDiscussionSpaceId, setSelectedDiscussionSpaceId] = useState<string | null>(null);
+  const [discussionSpaces, setDiscussionSpaces] = useState<DiscussionSpace[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [adminCenterOpen, setAdminCenterOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [isVoiceCall, setIsVoiceCall] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [createDiscussionSpaceOpen, setCreateDiscussionSpaceOpen] = useState(false);
+  const [messagesByContact, setMessagesByContact] = useState<Record<string, Message[]>>({});
 
-  // 初始化 - 检查登录状态
-  useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      loadCurrentUser();
+  // 为每个讨论空间分别存储消息
+  const [messagesByDiscussionSpace, setMessagesByDiscussionSpace] = useState<Record<string, Message[]>>({
+    // 讨论空间的消息会在这里存储
+  });
+
+  // 为每个讨论空间存储成员加入时间
+  const [_memberJoinTimes, setMemberJoinTimes] = useState<Record<string, Record<string, Date>>>({
+    // 格式: { spaceId: { memberId: joinTime } }
+  });
+
+  // ==========================================
+  // API 加载函数
+  // ==========================================
+
+  // 加载讨论空间列表
+  const loadDiscussionSpaces = useCallback(async (groupId?: string) => {
+    try {
+      const spaces = await apiService.getDiscussionSpaces(groupId);
+      setDiscussionSpaces(spaces);
+    } catch (error) {
+      console.error('Failed to load discussion spaces:', error);
     }
   }, []);
 
@@ -51,6 +78,7 @@ function App() {
       const user = await apiService.getCurrentUser();
       setCurrentUser(user);
       await loadContacts(user.id);
+      await loadDiscussionSpaces(); // 加载所有讨论空间
       connectWebSocket(user.id);
     } catch (error) {
       console.error('Failed to load user:', error);
@@ -69,14 +97,129 @@ function App() {
       case 'message':
         handleNewMessage(data.message);
         break;
-      case 'notification':
-        setUnreadNotifications((prev) => prev + 1);
-        break;
       case 'contact_status':
         updateContactStatus(data.contactId, data.status);
         break;
       default:
         console.log('Unknown message type:', data.type);
+    }
+  };
+
+  // ==========================================
+  // useEffect 钩子
+  // ==========================================
+
+  // 初始化 - 检查登录状态
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      loadCurrentUser();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 当选择联系人时，如果是群组则重新加载该群组的讨论空间
+  useEffect(() => {
+    if (selectedContactId) {
+      const selectedContact = contacts.find(c => c.id === selectedContactId);
+      if (selectedContact?.isGroup) {
+        loadDiscussionSpaces(selectedContactId);
+      }
+    }
+  }, [selectedContactId, contacts, loadDiscussionSpaces]);
+
+  // ==========================================
+  // 讨论空间处理函数
+  // ==========================================
+
+
+  const handleCreateDiscussionSpace = async (name: string, groupId: string, members: string[], description?: string) => {
+    if (!currentUser) return;
+
+    try {
+      // 调用 API 创建讨论空间
+      const newSpace = await apiService.createDiscussionSpace(name, groupId, members, description);
+
+      // 更新本地状态
+      setDiscussionSpaces([...discussionSpaces, newSpace]);
+
+      // 记录成员加入时间
+      const joinTimes: Record<string, Date> = {};
+      members.forEach(memberId => {
+        joinTimes[memberId] = new Date();
+      });
+      setMemberJoinTimes(prev => ({
+        ...prev,
+        [newSpace.id]: joinTimes
+      }));
+
+      toast.success(`讨论空间 "${name}" 已创建`);
+    } catch (error) {
+      console.error('Failed to create discussion space:', error);
+      toast.error('创建讨论空间失败，请重试');
+    }
+  };
+
+  const handleAddDiscussionSpaceMember = async (spaceId: string, newMembers: string[]) => {
+    try {
+      // 调用 API 添加成员
+      const updatedSpace = await apiService.addDiscussionSpaceMembers(spaceId, newMembers);
+
+      // 更新本地状态
+      setDiscussionSpaces(discussionSpaces.map(space =>
+        space.id === spaceId ? updatedSpace : space
+      ));
+
+      // 为新成员记录加入时间
+      setMemberJoinTimes(prev => {
+        const spaceJoinTimes = prev[spaceId] || {};
+        const updatedJoinTimes = { ...spaceJoinTimes };
+
+        newMembers.forEach(memberId => {
+          if (!updatedJoinTimes[memberId]) {
+            updatedJoinTimes[memberId] = new Date();
+          }
+        });
+
+        return {
+          ...prev,
+          [spaceId]: updatedJoinTimes
+        };
+      });
+
+      toast.success(`已添加 ${newMembers.length} 位新成员到讨论空间`);
+    } catch (error) {
+      console.error('Failed to add members:', error);
+      toast.error('添加成员失败，请重试');
+    }
+  };
+
+  const handleRemoveDiscussionSpaceMember = async (spaceId: string, memberId: string) => {
+    try {
+      // 调用 API 移除成员
+      const updatedSpace = await apiService.removeDiscussionSpaceMember(spaceId, memberId);
+
+      // 更新本地状态
+      setDiscussionSpaces(discussionSpaces.map(space =>
+        space.id === spaceId ? updatedSpace : space
+      ));
+
+      // 移除成员加入时间记录
+      setMemberJoinTimes(prev => {
+        const spaceJoinTimes = prev[spaceId] || {};
+        const updatedJoinTimes = { ...spaceJoinTimes };
+        delete updatedJoinTimes[memberId];
+
+        return {
+          ...prev,
+          [spaceId]: updatedJoinTimes
+        };
+      });
+
+      toast.success('已从讨论空间移除成员');
+    } catch (error) {
+      console.error('Failed to remove member:', error);
+      toast.error('移除成员失败，请重试');
     }
   };
 
@@ -95,6 +238,7 @@ function App() {
       console.error('Failed to load contacts:', error);
     }
   };
+
 
   // 加载最近聊天记录并更新联系人
   const loadRecentChats = async (userId: string, contactsList: Contact[]) => {
@@ -174,7 +318,10 @@ function App() {
   const loadMessages = async (contactId: string) => {
     try {
       const messagesData = await apiService.getMessages(contactId);
-      setMessages(messagesData);
+      setMessagesByContact(prev => ({
+        ...prev,
+        [contactId]: messagesData
+      }));
     } catch (error) {
       console.error('Failed to load messages:', error);
     }
@@ -182,9 +329,17 @@ function App() {
 
   // 处理新消息
   const handleNewMessage = async (message: Message) => {
-    // 如果是当前聊天窗口的消息，直接添加到消息列表
-    if (message.senderId === selectedContactId || message.receiverId === selectedContactId) {
-      setMessages((prev) => [...prev, message]);
+    // 确定消息的对话 ID（对方的 ID）
+    const conversationId = message.senderId === currentUser?.id ? message.receiverId : message.senderId;
+
+    if (!conversationId) return;
+
+    // 如果是当前聊天窗口的消息，添加到对应的消息列表
+    if (conversationId === selectedContactId) {
+      setMessagesByContact(prev => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), message]
+      }));
     }
 
     // 更新联系人的最后消息（只有当消息不是当前用户发送的时候才更新）
@@ -276,7 +431,8 @@ function App() {
       localStorage.removeItem('auth_token');
       setCurrentUser(null);
       setContacts([]);
-      setMessages([]);
+      setMessagesByContact({});
+      setMessagesByDiscussionSpace({});
       setSelectedContactId(null);
     }
   };
@@ -322,6 +478,7 @@ function App() {
       const newMessage: Message = {
         id: messageData.id || Date.now().toString(),
         senderId: currentUser.id,
+        receiverId: selectedContactId,
         content,
         timestamp: new Date(),
         type,
@@ -331,7 +488,26 @@ function App() {
         fileSize: messageData.fileSize,
       };
 
-      setMessages((prev) => [...prev, newMessage]);
+      if (selectedDiscussionSpaceId) {
+        // 在讨论空间中发送的消息，存储在独立的讨论空间消息存储中
+        setMessagesByDiscussionSpace(prev => ({
+          ...prev,
+          [selectedDiscussionSpaceId]: [
+            ...(prev[selectedDiscussionSpaceId] || []),
+            newMessage
+          ]
+        }));
+      } else {
+        // 在主群或一对一聊天中发送的消息，存储在联系人消息存储中
+        setMessagesByContact(prev => ({
+          ...prev,
+          [selectedContactId]: [
+            ...(prev[selectedContactId] || []),
+            newMessage
+          ]
+        }));
+      }
+
       updateContactLastMessage(selectedContactId, content);
 
       // 通过 WebSocket 发送
@@ -382,8 +558,39 @@ function App() {
   };
 
   const selectedContact = contacts.find(c => c.id === selectedContactId);
-  const currentMessages = selectedContactId ? messages : [];
+  // 如果选择了讨论空间，使用讨论空间的消息；否则使用联系人的消息
+  const currentMessages = selectedDiscussionSpaceId
+    ? (() => {
+        const spaceMessages = messagesByDiscussionSpace[selectedDiscussionSpaceId] || [];
+        const space = discussionSpaces.find(s => s.id === selectedDiscussionSpaceId);
+        const isMember = space && currentUser?.id ? space.members.includes(currentUser.id) : false;
 
+        // 只有空间成员可以查看消息
+        return isMember ? spaceMessages : [];
+      })()
+    : (selectedContactId ? (messagesByContact[selectedContactId] || []) : []);
+
+  // 当消息更新时，更新对应联系人的最后一条消息
+  useEffect(() => {
+    if (selectedContactId && currentMessages.length > 0 && !selectedDiscussionSpaceId) {
+      // 只有在主群或一对一聊天中才更新联系人的最后一条消息，讨论空间的消息不影响主群显示
+      const lastMessage = currentMessages[currentMessages.length - 1];
+      setContacts(prevContacts =>
+        prevContacts.map(contact =>
+          contact.id === selectedContactId
+            ? {
+                ...contact,
+                lastMessage: lastMessage.type === 'text'
+                  ? lastMessage.content
+                  : lastMessage.type === 'file'
+                    ? '发送了一个文件'
+                    : '发送了一张图片'
+              }
+            : contact
+        )
+      );
+    }
+  }, [currentMessages, selectedContactId, selectedDiscussionSpaceId]);
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -425,19 +632,6 @@ function App() {
           <Button
             variant="ghost"
             size="icon"
-            className="text-white hover:bg-white/10 relative"
-            onClick={() => setNotificationCenterOpen(true)}
-          >
-            <Bell className="h-5 w-5" />
-            {unreadNotifications > 0 && (
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-red-500 border-2 border-blue-600">
-                {unreadNotifications}
-              </Badge>
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
             className="text-white hover:bg-white/10"
             onClick={() => setSettingsOpen(true)}
           >
@@ -453,7 +647,12 @@ function App() {
               <Shield className="h-5 w-5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={handleLogout}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-white/10"
+            onClick={handleLogout}
+          >
             <LogOut className="h-5 w-5" />
           </Button>
         </div>
@@ -468,6 +667,7 @@ function App() {
             selectedContactId={selectedContactId}
             onSelectContact={handleSelectContact}
             currentUser={currentUser}
+            messagesByContact={messagesByContact}
           />
         </div>
 
@@ -479,6 +679,16 @@ function App() {
           onSendMessage={handleSendMessage}
           onStartVideoCall={handleStartVideoCall}
           onStartVoiceCall={handleStartVoiceCall}
+          discussionSpaces={selectedContact?.isGroup ? discussionSpaces.filter(space => space.groupId === selectedContact.id) : []}
+          selectedDiscussionSpaceId={selectedDiscussionSpaceId}
+          onSelectDiscussionSpace={(spaceId) => setSelectedDiscussionSpaceId(spaceId)}
+          onCreateDiscussionSpace={() => selectedContact?.isGroup && setCreateDiscussionSpaceOpen(true)}
+          onAddDiscussionSpaceMember={handleAddDiscussionSpaceMember}
+          onRemoveDiscussionSpaceMember={handleRemoveDiscussionSpaceMember}
+          currentUserRole={currentUser.role}
+          contacts={contacts}
+          onSelectContact={setSelectedContactId}
+          mainGroupMessages={selectedContact?.isGroup ? (messagesByContact[selectedContact.id] || []) : []}
         />
       </div>
 
@@ -498,12 +708,6 @@ function App() {
         />
       )}
 
-      {/* 通知中心 */}
-      <NotificationCenter
-        open={notificationCenterOpen}
-        onClose={() => setNotificationCenterOpen(false)}
-      />
-
       {/* 视频/语音通话 */}
       {selectedContact && (
         <VideoCallDialog
@@ -512,6 +716,17 @@ function App() {
           contactName={selectedContact.name}
           contactAvatar={selectedContact.avatar}
           isVoiceOnly={isVoiceCall}
+        />
+      )}
+
+      {/* 讨论空间创建对话框 */}
+      {selectedContact && selectedContact.isGroup && (
+        <DiscussionSpaceDialog
+          open={createDiscussionSpaceOpen}
+          onClose={() => setCreateDiscussionSpaceOpen(false)}
+          group={selectedContact}
+          currentUserId={currentUser.id}
+          onCreate={handleCreateDiscussionSpace}
         />
       )}
     </div>
