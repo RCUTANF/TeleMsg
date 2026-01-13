@@ -1,5 +1,6 @@
 package com.telemsg.server.service;
 
+import com.telemsg.server.entity.FileInfo;
 import com.telemsg.server.entity.Message;
 import com.telemsg.server.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
@@ -91,6 +92,82 @@ public class MessageService {
 
         log.info("群聊消息发送成功: messageId={}, senderId={}, groupId={}",
                 savedMessage.getMessageId(), senderId, groupId);
+
+        return savedMessage;
+    }
+
+    /**
+     * 发送带文件的私聊消息 (支持MinIO)
+     */
+    @Transactional
+    public Message sendPrivateFileMessage(String senderId, String receiverId,
+                                        Message.MessageType messageType, String content,
+                                        FileInfo fileInfo) {
+        // 验证发送者和接收者
+        if (userService.findByUserId(senderId).isEmpty()) {
+            throw new RuntimeException("发送者不存在");
+        }
+        if (userService.findByUserId(receiverId).isEmpty()) {
+            throw new RuntimeException("接收者不存在");
+        }
+
+        // 创建消息
+        Message message = new Message();
+        message.setMessageId(generateMessageId());
+        message.setSenderId(senderId);
+        message.setReceiverId(receiverId);
+        message.setMessageType(messageType);
+        message.setContent(content);
+        message.setMediaUrl(fileInfo.getFileUrl());
+        message.setFileName(fileInfo.getOriginalFilename());
+        message.setFileSize(fileInfo.getFileSize());
+        message.setFileId(fileInfo.getFileId());
+        message.setThumbnailUrl(fileInfo.getThumbnailUrl());
+        message.setStatus(Message.MessageStatus.SENT);
+
+        Message savedMessage = messageRepository.save(message);
+
+        log.info("文件消息发送成功: messageId={}, senderId={}, receiverId={}, fileId={}",
+                savedMessage.getMessageId(), senderId, receiverId, fileInfo.getFileId());
+
+        return savedMessage;
+    }
+
+    /**
+     * 发送带文件的群聊消息 (支持MinIO)
+     */
+    @Transactional
+    public Message sendGroupFileMessage(String senderId, String groupId,
+                                      Message.MessageType messageType, String content,
+                                      FileInfo fileInfo) {
+        // 验证发送者
+        if (userService.findByUserId(senderId).isEmpty()) {
+            throw new RuntimeException("发送者不存在");
+        }
+
+        // 验证群组和成员身份
+        if (!groupService.isGroupMember(groupId, senderId)) {
+            throw new RuntimeException("不是群组成员，无法发送消息");
+        }
+
+        // 创建消息
+        Message message = new Message();
+        message.setMessageId(generateMessageId());
+        message.setSenderId(senderId);
+        message.setGroupId(groupId);
+        message.setMessageType(messageType);
+        message.setContent(content);
+        message.setMediaUrl(fileInfo.getFileUrl());
+        message.setFileName(fileInfo.getOriginalFilename());
+        message.setFileSize(fileInfo.getFileSize());
+        message.setFileId(fileInfo.getFileId());
+        message.setThumbnailUrl(fileInfo.getThumbnailUrl());
+        message.setStatus(Message.MessageStatus.SENT);
+
+        Message savedMessage = messageRepository.save(message);
+
+        log.info("群聊文件消息发送成功: messageId={}, senderId={}, groupId={}, fileId={}",
+                savedMessage.getMessageId(), senderId, groupId, fileInfo.getFileId());
 
         return savedMessage;
     }

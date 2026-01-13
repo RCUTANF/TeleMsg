@@ -1,8 +1,11 @@
 package com.telemsg.server.controller;
 
 import com.telemsg.server.entity.Message;
+import com.telemsg.server.entity.FileInfo;
+import com.telemsg.server.dto.FileUploadResponse;
 import com.telemsg.server.service.MessageService;
 import com.telemsg.server.service.JwtService;
+import com.telemsg.server.service.MinIOService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -11,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
@@ -18,6 +22,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -34,6 +39,7 @@ public class MessageController {
 
     private final MessageService messageService;
     private final JwtService jwtService;
+    private final MinIOService minIOService;
 
     /**
      * 获取与某个联系人的消息历史
@@ -321,7 +327,7 @@ public class MessageController {
     }
 
     /**
-     * 转换为响应对象
+     * 转换为 MessageResponse 对象
      */
     private MessageResponse convertToResponse(Message message) {
         MessageResponse response = new MessageResponse();
@@ -329,15 +335,17 @@ public class MessageController {
         response.setSenderId(message.getSenderId());
         response.setReceiverId(message.getReceiverId());
         response.setGroupId(message.getGroupId());
-        response.setMessageType(message.getMessageType().name());
+        response.setMessageType(message.getMessageType().name().toLowerCase());
         response.setContent(message.getContent());
         response.setMediaUrl(message.getMediaUrl());
         response.setFileName(message.getFileName());
         response.setFileSize(message.getFileSize());
-        response.setStatus(message.getStatus().name());
+        response.setFileId(message.getFileId());
+        response.setStatus(message.getStatus().name().toLowerCase());
         response.setCreateTime(message.getCreateTime());
         return response;
     }
+
 
     // ===== 请求/响应对象 =====
 
@@ -397,6 +405,7 @@ public class MessageController {
         private String mediaUrl;
         private String fileName;
         private Long fileSize;
+        private String fileId;
         private String status;
         private LocalDateTime createTime;
 
@@ -427,6 +436,9 @@ public class MessageController {
 
         public Long getFileSize() { return fileSize; }
         public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
+
+        public String getFileId() { return fileId; }
+        public void setFileId(String fileId) { this.fileId = fileId; }
 
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
@@ -490,6 +502,7 @@ public class MessageController {
         Map<String, Object> response = new HashMap<>();
         response.put("id", message.getMessageId());
         response.put("senderId", message.getSenderId());
+        response.put("receiverId", message.getReceiverId());
         response.put("content", message.getContent());
         // 使用东八区时区（GMT+8）
         response.put("timestamp", message.getCreateTime().toInstant(ZoneOffset.of("+08:00")).toEpochMilli());
@@ -503,6 +516,9 @@ public class MessageController {
         }
         if (message.getFileSize() != null) {
             response.put("fileSize", message.getFileSize().toString());
+        }
+        if (message.getFileId() != null) {
+            response.put("fileId", message.getFileId());
         }
 
         response.put("status", message.getStatus().name().toLowerCase());
@@ -528,5 +544,117 @@ public class MessageController {
 
         public String getType() { return type; }
         public void setType(String type) { this.type = type; }
+    }
+
+    /**
+     * 发送带文件的私聊消息
+     */
+    @PostMapping("/send-file")
+    public ResponseEntity<?> sendFileMessage(@RequestHeader("Authorization") String authHeader,
+                                           @RequestParam("recipientId") String recipientId,
+                                           @RequestParam("file") MultipartFile file,
+                                           @RequestParam(value = "content", required = false) String content) {
+        try {
+            String senderId = extractUserIdFromToken(authHeader);
+
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "文件不能为空"));
+            }
+
+            // 上传文件到MinIO
+            FileUploadResponse fileResponse = minIOService.uploadFile(file, senderId);
+
+            // 获取文件信息
+            Optional<FileInfo> fileInfoOpt = minIOService.getFileInfo(fileResponse.getFileId());
+            if (fileInfoOpt.isEmpty()) {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "文件上传失败"));
+            }
+
+            FileInfo fileInfo = fileInfoOpt.get();
+
+            // 确定消息类型
+            Message.MessageType messageType = determineMessageType(file.getContentType());
+
+            // 发送文件消息
+            Message message = messageService.sendPrivateFileMessage(
+                senderId, recipientId, messageType, content != null ? content : "", fileInfo
+            );
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "文件消息发送成功",
+                "data", convertToClientResponse(message)
+            ));
+
+        } catch (Exception e) {
+            log.error("Failed to send file message: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "文件消息发送失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 发送带文件的群聊消息
+     */
+    @PostMapping("/send-group-file")
+    public ResponseEntity<?> sendGroupFileMessage(@RequestHeader("Authorization") String authHeader,
+                                                @RequestParam("groupId") String groupId,
+                                                @RequestParam("file") MultipartFile file,
+                                                @RequestParam(value = "content", required = false) String content) {
+        try {
+            String senderId = extractUserIdFromToken(authHeader);
+
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "文件不能为空"));
+            }
+
+            // 上传文件到MinIO
+            FileUploadResponse fileResponse = minIOService.uploadFile(file, senderId);
+
+            // 获取文件信息
+            Optional<FileInfo> fileInfoOpt = minIOService.getFileInfo(fileResponse.getFileId());
+            if (fileInfoOpt.isEmpty()) {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "文件上传失败"));
+            }
+
+            FileInfo fileInfo = fileInfoOpt.get();
+
+            // 确定消息类型
+            Message.MessageType messageType = determineMessageType(file.getContentType());
+
+            // 发送群聊文件消息
+            Message message = messageService.sendGroupFileMessage(
+                senderId, groupId, messageType, content != null ? content : "", fileInfo
+            );
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "群聊文件消息发送成功",
+                "data", convertToClientResponse(message)
+            ));
+
+        } catch (Exception e) {
+            log.error("Failed to send group file message: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "群聊文件消息发送失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 根据文件类型确定消息类型
+     */
+    private Message.MessageType determineMessageType(String contentType) {
+        if (contentType != null) {
+            if (contentType.startsWith("image/")) {
+                return Message.MessageType.IMAGE;
+            } else if (contentType.startsWith("video/")) {
+                return Message.MessageType.VIDEO;
+            } else if (contentType.startsWith("audio/")) {
+                return Message.MessageType.VOICE;
+            }
+        }
+        return Message.MessageType.FILE;
     }
 }

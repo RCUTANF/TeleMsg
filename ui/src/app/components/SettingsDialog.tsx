@@ -39,19 +39,52 @@ interface SettingsDialogProps {
     avatar: string;
   };
   onUpdateProfile?: (name: string, username: string) => void;
+  onUpdateProxySettings?: (settings: {
+    enabled: boolean;
+    host: string;
+    port: string;
+    type: string;
+  }) => void;
 }
 
-export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile }: SettingsDialogProps) {
+export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, onUpdateProxySettings }: SettingsDialogProps) {
   const [name, setName] = useState(currentUser.name);
   const [username, setUsername] = useState(currentUser.username);
   const [enableNotifications, setEnableNotifications] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [proxyEnabled, setProxyEnabled] = useState(false);
-  const [proxyHost, setProxyHost] = useState('');
-  const [proxyPort, setProxyPort] = useState('');
+  const [desktopNotifications, setDesktopNotifications] = useState(true);
+  const [theme, setTheme] = useState('light');
+  const [language, setLanguage] = useState('zh-CN');
+
+  // 初始化代理设置
+  const [proxyEnabled, setProxyEnabled] = useState(() => {
+    const saved = localStorage.getItem('proxySettings');
+    return saved ? JSON.parse(saved).enabled : false;
+  });
+  const [proxyHost, setProxyHost] = useState(() => {
+    const saved = localStorage.getItem('proxySettings');
+    return saved ? JSON.parse(saved).host : '';
+  });
+  const [proxyPort, setProxyPort] = useState(() => {
+    const saved = localStorage.getItem('proxySettings');
+    return saved ? JSON.parse(saved).port : '';
+  });
+  const [proxyType, setProxyType] = useState(() => {
+    const saved = localStorage.getItem('proxySettings');
+    return saved ? JSON.parse(saved).type : 'http';
+  });
 
   const handleSaveProfile = () => {
     onUpdateProfile?.(name, username);
+  };
+
+  const handleSaveProxySettings = () => {
+    onUpdateProxySettings?.({
+      enabled: proxyEnabled,
+      host: proxyHost,
+      port: proxyPort,
+      type: proxyType
+    });
   };
 
   return (
@@ -202,7 +235,7 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile }: 
                     </div>
                     <div className="space-y-2">
                       <Label>代理类型</Label>
-                      <Select defaultValue="http">
+                      <Select value={proxyType} onValueChange={setProxyType}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -212,6 +245,10 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile }: 
                         </SelectContent>
                       </Select>
                     </div>
+                    <Button onClick={handleSaveProxySettings} className="w-full mt-4">
+                      <Save className="h-4 w-4 mr-2" />
+                      保存代理设置
+                    </Button>
                   </div>
                 </>
               )}

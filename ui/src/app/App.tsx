@@ -470,8 +470,10 @@ function App() {
     try {
       let messageData;
       if (file) {
-        messageData = await apiService.uploadFile(file, selectedContactId);
+        // 发送文件消息
+        messageData = await apiService.sendFileMessage(selectedContactId, file, content);
       } else {
+        // 发送文本消息
         messageData = await apiService.sendMessage(selectedContactId, content, type);
       }
 
@@ -479,36 +481,37 @@ function App() {
         id: messageData.id || Date.now().toString(),
         senderId: currentUser.id,
         receiverId: selectedContactId,
-        content,
-        timestamp: new Date(),
-        type,
+        content: messageData.content || content,
+        timestamp: new Date(messageData.timestamp || new Date()),
+        type: messageData.type || type,
         status: 'sent',
         fileUrl: messageData.fileUrl,
         fileName: messageData.fileName,
         fileSize: messageData.fileSize,
+        ...((messageData as any).fileId && { fileId: (messageData as any).fileId }),
       };
 
-      if (selectedDiscussionSpaceId) {
-        // 在讨论空间中发送的消息，存储在独立的讨论空间消息存储中
-        setMessagesByDiscussionSpace(prev => ({
-          ...prev,
-          [selectedDiscussionSpaceId]: [
-            ...(prev[selectedDiscussionSpaceId] || []),
-            newMessage
-          ]
-        }));
-      } else {
-        // 在主群或一对一聊天中发送的消息，存储在联系人消息存储中
-        setMessagesByContact(prev => ({
-          ...prev,
-          [selectedContactId]: [
-            ...(prev[selectedContactId] || []),
-            newMessage
-          ]
-        }));
-      }
+        if (selectedDiscussionSpaceId) {
+            // 在讨论空间中发送的消息，存储在独立的讨论空间消息存储中
+            setMessagesByDiscussionSpace(prev => ({
+                ...prev,
+                [selectedDiscussionSpaceId]: [
+                    ...(prev[selectedDiscussionSpaceId] || []),
+                    newMessage
+                ]
+            }));
+        } else {
+            // 在主群或一对一聊天中发送的消息，存储在联系人消息存储中
+            setMessagesByContact(prev => ({
+                ...prev,
+                [selectedContactId]: [
+                    ...(prev[selectedContactId] || []),
+                    newMessage
+                ]
+            }));
+        }
 
-      updateContactLastMessage(selectedContactId, content);
+      updateContactLastMessage(selectedContactId, file ? `[${file.type.startsWith('image/') ? '图片' : '文件'}] ${file.name}` : content);
 
       // 通过 WebSocket 发送
       apiService.sendWebSocketMessage({
@@ -530,6 +533,27 @@ function App() {
     } catch (error) {
       console.error('Failed to update profile:', error);
       toast.error('更新个人资料失败');
+    }
+  };
+
+  // 更新代理设置
+  const handleUpdateProxySettings = async (settings: {
+    enabled: boolean;
+    host: string;
+    port: string;
+    type: string;
+  }) => {
+    try {
+      // 保存代理设置到本地存储
+      localStorage.setItem('proxySettings', JSON.stringify(settings));
+
+      // 如果有API端点，也可以保存到服务器
+      // await apiService.updateProxySettings(settings);
+
+      toast.success('代理设置已保存');
+    } catch (error) {
+      console.error('Failed to update proxy settings:', error);
+      toast.error('保存代理设置失败');
     }
   };
 
@@ -698,6 +722,7 @@ function App() {
         onClose={() => setSettingsOpen(false)}
         currentUser={currentUser}
         onUpdateProfile={handleUpdateProfile}
+        onUpdateProxySettings={handleUpdateProxySettings}
       />
 
       {/* 管理员面板 */}

@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS tm_messages (
     media_url VARCHAR(500),
     file_name VARCHAR(200),
     file_size BIGINT,
+    file_id VARCHAR(100),         -- MinIO文件ID
+    thumbnail_url VARCHAR(500),   -- 缩略图URL (仅图片类型)
     status ENUM('SENT', 'DELIVERED', 'READ', 'FAILED') NOT NULL DEFAULT 'SENT',
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -90,5 +92,26 @@ INSERT IGNORE INTO tm_users (user_id, username, password, email, status) VALUES
 ('admin', 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iGNEzBvW', 'admin@telemsg.com', 'OFFLINE'),
 ('test1', 'testuser1', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iGNEzBvW', 'test1@telemsg.com', 'OFFLINE'),
 ('test2', 'testuser2', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iGNEzBvW', 'test2@telemsg.com', 'OFFLINE');
+
+-- 创建文件信息表 (MinIO支持)
+CREATE TABLE IF NOT EXISTS files (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    file_id VARCHAR(100) NOT NULL UNIQUE,
+    original_filename VARCHAR(255),
+    filename VARCHAR(255),
+    content_type VARCHAR(100),
+    file_size BIGINT,
+    bucket_name VARCHAR(100),
+    object_key VARCHAR(500),
+    file_url VARCHAR(500),
+    thumbnail_url VARCHAR(500),
+    uploader_id VARCHAR(50),
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_image BOOLEAN DEFAULT FALSE,
+    INDEX idx_file_id (file_id),
+    INDEX idx_uploader_id (uploader_id),
+    INDEX idx_content_type (content_type),
+    INDEX idx_created_time (created_time)
+);
 
 -- 注释: 默认密码都是 "123456"
