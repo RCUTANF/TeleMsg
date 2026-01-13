@@ -190,6 +190,53 @@ public class UserService {
     }
 
     /**
+     * 更新用户信息 (包括角色和管理员权限)
+     */
+    @Transactional
+    public User updateUserInfo(String userId, String email, String phone, String avatar, String signature,
+                              Boolean isAdmin, User.UserRole role) {
+        Optional<User> userOpt = userRepository.findByUserId(userId);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        User user = userOpt.get();
+        if (email != null) user.setEmail(email);
+        if (phone != null) user.setPhone(phone);
+        if (avatar != null) user.setAvatar(avatar);
+        if (signature != null) user.setSignature(signature);
+        if (isAdmin != null) user.setIsAdmin(isAdmin);
+        if (role != null) user.setRole(role);
+        user.setUpdateTime(LocalDateTime.now());
+
+        User updatedUser = userRepository.save(user);
+        log.info("用户信息更新成功: userId={}, isAdmin={}, role={}", userId, isAdmin, role);
+
+        return updatedUser;
+    }
+
+    /**
+     * 更新用户角色和权限
+     */
+    @Transactional
+    public User updateUserRoleAndPermission(String userId, User.UserRole role, Boolean isAdmin) {
+        Optional<User> userOpt = userRepository.findByUserId(userId);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        User user = userOpt.get();
+        if (role != null) user.setRole(role);
+        if (isAdmin != null) user.setIsAdmin(isAdmin);
+        user.setUpdateTime(LocalDateTime.now());
+
+        User updatedUser = userRepository.save(user);
+        log.info("用户角色和权限更新成功: userId={}, role={}, isAdmin={}", userId, role, isAdmin);
+
+        return updatedUser;
+    }
+
+    /**
      * 修改密码
      */
     @Transactional

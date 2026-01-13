@@ -11,8 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.constraints.NotBlank;
 import java.util.Optional;
-import java.util.Map;
-import java.util.HashMap;
 
 /**
  * 用户管理REST API
@@ -104,12 +102,24 @@ public class UserController {
     public ResponseEntity<?> updateUserInfo(@PathVariable String userId,
                                            @RequestBody @Validated UserUpdateRequest request) {
         try {
+            // 验证角色值
+            User.UserRole userRole = null;
+            if (request.getRole() != null) {
+                try {
+                    userRole = User.UserRole.valueOf(request.getRole().toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    return ResponseEntity.badRequest().body(ApiResponse.error("无效的角色值，支持的角色：director, manager, employee"));
+                }
+            }
+
             User user = userService.updateUserInfo(
                 userId,
                 request.getEmail(),
                 request.getPhone(),
                 request.getAvatar(),
-                request.getSignature()
+                request.getSignature(),
+                request.getIsAdmin(),
+                userRole
             );
 
             UserResponse response = convertToResponse(user);
@@ -118,6 +128,34 @@ public class UserController {
 
         } catch (Exception e) {
             log.error("更新用户信息失败: userId={}", userId, e);
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
+     * 更新用户角色和权限
+     */
+    @PutMapping("/{userId}/role")
+    public ResponseEntity<?> updateUserRole(@PathVariable String userId,
+                                          @RequestBody @Validated UpdateRoleRequest request) {
+        try {
+            // 验证角色值
+            User.UserRole userRole = null;
+            if (request.getRole() != null) {
+                try {
+                    userRole = User.UserRole.valueOf(request.getRole().toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    return ResponseEntity.badRequest().body(ApiResponse.error("无效的角色值，支持的角色：director, manager, employee"));
+                }
+            }
+
+            User user = userService.updateUserRoleAndPermission(userId, userRole, request.getIsAdmin());
+            UserResponse response = convertToResponse(user);
+
+            return ResponseEntity.ok(ApiResponse.success("角色和权限更新成功", response));
+
+        } catch (Exception e) {
+            log.error("更新用户角色和权限失败: userId={}", userId, e);
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
@@ -167,6 +205,8 @@ public class UserController {
         response.setAvatar(user.getAvatar());
         response.setSignature(user.getSignature());
         response.setStatus(user.getStatus().name());
+        response.setIsAdmin(user.getIsAdmin());
+        response.setRole(user.getRole() != null ? user.getRole().name().toLowerCase() : "employee");
         response.setCreateTime(user.getCreateTime());
         response.setLastLoginTime(user.getLastLoginTime());
         return response;
@@ -183,6 +223,8 @@ public class UserController {
         private String phone;
         private String avatar;
         private String signature;
+        private Boolean isAdmin;
+        private String role;
 
         // Getters and Setters
         public String getEmail() { return email; }
@@ -196,6 +238,24 @@ public class UserController {
 
         public String getSignature() { return signature; }
         public void setSignature(String signature) { this.signature = signature; }
+
+        public Boolean getIsAdmin() { return isAdmin; }
+        public void setIsAdmin(Boolean isAdmin) { this.isAdmin = isAdmin; }
+
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
+    }
+
+    public static class UpdateRoleRequest {
+        private String role;
+        private Boolean isAdmin;
+
+        // Getters and Setters
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
+
+        public Boolean getIsAdmin() { return isAdmin; }
+        public void setIsAdmin(Boolean isAdmin) { this.isAdmin = isAdmin; }
     }
 
     public static class ChangePasswordRequest {
@@ -221,6 +281,8 @@ public class UserController {
         private String avatar;
         private String signature;
         private String status;
+        private Boolean isAdmin;
+        private String role;
         private java.time.LocalDateTime createTime;
         private java.time.LocalDateTime lastLoginTime;
 
@@ -245,6 +307,12 @@ public class UserController {
 
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
+
+        public Boolean getIsAdmin() { return isAdmin; }
+        public void setIsAdmin(Boolean isAdmin) { this.isAdmin = isAdmin; }
+
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
 
         public java.time.LocalDateTime getCreateTime() { return createTime; }
         public void setCreateTime(java.time.LocalDateTime createTime) { this.createTime = createTime; }
@@ -278,7 +346,8 @@ public class UserController {
         response.put("name", user.getUsername());
         response.put("username", user.getUsername());
         response.put("avatar", user.getAvatar() != null ? user.getAvatar() : "");
-        response.put("role", "user");
+        response.put("role", user.getRole() != null ? user.getRole().name().toLowerCase() : "employee");
+        response.put("isAdmin", user.getIsAdmin() != null ? user.getIsAdmin() : false);
         return response;
     }
 
