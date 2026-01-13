@@ -50,6 +50,12 @@ public class Message {
 
     private Long fileSize; // 文件大小（字节）
 
+    @Column(length = 100)
+    private String fileId; // MinIO文件ID，对应FileInfo表
+
+    @Column(length = 500)
+    private String thumbnailUrl; // 缩略图URL (仅图片类型)
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MessageStatus status = MessageStatus.SENT;
