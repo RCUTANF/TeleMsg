@@ -1,11 +1,12 @@
+
 # TeleMsg API 接口文档
 
 ## 概述
 
 TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、消息传输、群组管理、文件上传、视频通话等功能。
 
-**服务器地址**: `http://localhost:8080`  
-**API 版本**: v1.0  
+**服务器地址**: `http://localhost:8080`
+**API 版本**: v1.0
 **认证方式**: Bearer Token (JWT)
 
 ## 通用响应格式
@@ -56,7 +57,8 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
     "name": "用户名",
     "username": "用户名",
     "avatar": "头像URL",
-    "role": "user"
+    "role": "employee",
+    "isAdmin": false
   }
 }
 ```
@@ -81,7 +83,8 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
     "name": "用户名",
     "username": "用户名",
     "avatar": "头像URL",
-    "role": "user"
+    "role": "employee",
+    "isAdmin": false
   }
 }
 ```
@@ -110,13 +113,14 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
   "name": "用户名",
   "username": "用户名",
   "avatar": "头像URL",
-  "role": "user"
+  "role": "manager",
+  "isAdmin": false
 }
 ```
 
-### 更新用户资料
+### 更新用户资料 (当前用户)
 - **URL**: `PUT /users/profile`
-- **描述**: 更新用户资料
+- **描述**: 更新当前用户的基本资料
 - **请求头**: `Authorization: Bearer <token>`
 - **请求体**:
 ```json
@@ -132,25 +136,82 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
   "name": "用户名",
   "username": "用户名",
   "avatar": "头像URL",
-  "role": "user"
+  "role": "employee",
+  "isAdmin": false
 }
 ```
 
-
-### 获取用户信息
+### 获取指定用户信息
 - **URL**: `GET /users/{userId}`
-- **描述**: 获取指定用户信息
+- **描述**: 获取指定用户的详细信息
+- **响应**:
+```json
+{
+  "success": true,
+  "message": "获取成功",
+  "data": {
+    "userId": "U1673456789123",
+    "username": "张三",
+    "email": "zhangsan@example.com",
+    "phone": "13812345678",
+    "avatar": "https://example.com/avatar.jpg",
+    "signature": "个性签名",
+    "status": "ONLINE",
+    "isAdmin": false,
+    "role": "manager",
+    "createTime": "2024-01-01T10:00:00",
+    "lastLoginTime": "2024-01-15T09:30:00"
+  }
+}
+```
 
-### 更新用户信息
+### 更新指定用户信息
 - **URL**: `PUT /users/{userId}`
-- **描述**: 更新用户信息
+- **描述**: 更新用户信息（包含权限和角色）
 - **请求体**:
 ```json
 {
   "email": "邮箱",
   "phone": "手机号",
   "avatar": "头像URL",
-  "signature": "个性签名"
+  "signature": "个性签名",
+  "isAdmin": true,
+  "role": "director"
+}
+```
+- **响应**:
+```json
+{
+  "success": true,
+  "message": "更新成功",
+  "data": {
+    "userId": "U1673456789123",
+    "username": "张三",
+    "role": "director",
+    "isAdmin": true,
+    "email": "...",
+    "phone": "..."
+    // ...其他字段
+  }
+}
+```
+
+### 更新用户角色和权限
+- **URL**: `PUT /users/{userId}/role`
+- **描述**: 专门用于更新用户的角色和管理员权限
+- **请求体**:
+```json
+{
+  "role": "manager",
+  "isAdmin": false
+}
+```
+- **响应**:
+```json
+{
+  "success": true,
+  "message": "角色和权限更新成功",
+  "data": { ... }
 }
 ```
 
@@ -484,7 +545,7 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 - **请求头**: `Authorization: Bearer <token>` （可选）
 - **响应**: 文件二进制数据
 
-### 获取��件信息
+### 获取文件信息
 - **URL**: `GET /files/{fileId}/info`
 - **描述**: 获取文件详细信息
 - **请求头**: `Authorization: Bearer <token>`
@@ -588,17 +649,6 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 - **描述**: 删除指定用户（管理员权限）
 - **请求头**: `Authorization: Bearer <token>`
 
-### 更新用户角色
-- **URL**: `PUT /admin/users/{userId}/role`
-- **描述**: 更新用户角色（管理员权限）
-- **请求头**: `Authorization: Bearer <token>`
-- **请求体**:
-```json
-{
-  "role": "admin|user"
-}
-```
-
 ### 获取系统统计
 - **URL**: `GET /admin/stats`
 - **描述**: 获取系统统计信息（管理员权限）
@@ -625,6 +675,15 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 
 ## 数据类型说明
 
+### 用户角色 (Role)
+- `director`: 总监 (最高权限)
+- `manager`: 经理 (中级管理)
+- `employee`: 员工 (基础用户，默认)
+
+### 管理员标志 (isAdmin)
+- `true`: 具有系统管理员权限
+- `false`: 普通用户权限
+
 ### 消息类型
 - `TEXT`: 文本消息
 - `IMAGE`: 图片消息
@@ -649,7 +708,7 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 2. 时间戳使用毫秒级Unix时间戳
 3. 文件大小单位为字节
 4. 分页从0开始计算
-5. 群组和私聊消息使用不同的端点
+5. `isAdmin` 字段与 `role` 字段共同决定用户权限，修改用户信息时请注意权限控制
 6. 管理员相关API需要特殊权限验证
 
 ## 开发建议
