@@ -289,6 +289,27 @@ function App() {
     }
   };
 
+  // 更新代理设置
+  const handleUpdateProxySettings = async (settings: {
+    enabled: boolean;
+    host: string;
+    port: string;
+    type: string;
+  }) => {
+    try {
+      // 保存代理设置到本地存储
+      localStorage.setItem('proxySettings', JSON.stringify(settings));
+
+      // 如果有API端点，也可以保存到服务器
+      // await apiService.updateProxySettings(settings);
+
+      toast.success('代理设置已保存');
+    } catch (error) {
+      console.error('Failed to update proxy settings:', error);
+      toast.error('保存代理设置失败');
+    }
+  };
+
   // 发起视频通话
   const handleStartVideoCall = async () => {
     if (!selectedContactId) return;
@@ -420,6 +441,7 @@ function App() {
         onClose={() => setSettingsOpen(false)}
         currentUser={currentUser}
         onUpdateProfile={handleUpdateProfile}
+        onUpdateProxySettings={handleUpdateProxySettings}
       />
 
       {/* 管理员面板 */}
