@@ -307,7 +307,7 @@ public class MessageController {
     }
 
     /**
-     * 转换为响应对象
+     * 转换为 MessageResponse 对象
      */
     private MessageResponse convertToResponse(Message message) {
         MessageResponse response = new MessageResponse();
@@ -315,15 +315,17 @@ public class MessageController {
         response.setSenderId(message.getSenderId());
         response.setReceiverId(message.getReceiverId());
         response.setGroupId(message.getGroupId());
-        response.setMessageType(message.getMessageType().name());
+        response.setMessageType(message.getMessageType().name().toLowerCase());
         response.setContent(message.getContent());
         response.setMediaUrl(message.getMediaUrl());
         response.setFileName(message.getFileName());
         response.setFileSize(message.getFileSize());
-        response.setStatus(message.getStatus().name());
+        response.setFileId(message.getFileId());
+        response.setStatus(message.getStatus().name().toLowerCase());
         response.setCreateTime(message.getCreateTime());
         return response;
     }
+
 
     // ===== 请求/响应对象 =====
 
@@ -383,6 +385,7 @@ public class MessageController {
         private String mediaUrl;
         private String fileName;
         private Long fileSize;
+        private String fileId;
         private String status;
         private LocalDateTime createTime;
 
@@ -413,6 +416,9 @@ public class MessageController {
 
         public Long getFileSize() { return fileSize; }
         public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
+
+        public String getFileId() { return fileId; }
+        public void setFileId(String fileId) { this.fileId = fileId; }
 
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
@@ -476,6 +482,7 @@ public class MessageController {
         Map<String, Object> response = new HashMap<>();
         response.put("id", message.getMessageId());
         response.put("senderId", message.getSenderId());
+        response.put("receiverId", message.getReceiverId());
         response.put("content", message.getContent());
         // 使用东八区时区（GMT+8）
         response.put("timestamp", message.getCreateTime().toInstant(ZoneOffset.of("+08:00")).toEpochMilli());
@@ -489,6 +496,9 @@ public class MessageController {
         }
         if (message.getFileSize() != null) {
             response.put("fileSize", message.getFileSize().toString());
+        }
+        if (message.getFileId() != null) {
+            response.put("fileId", message.getFileId());
         }
 
         response.put("status", message.getStatus().name().toLowerCase());

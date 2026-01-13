@@ -34,6 +34,7 @@ export interface Message {
   fileUrl?: string;
   fileName?: string;
   fileSize?: string;
+  fileId?: string;
   status: 'sending' | 'sent' | 'read';
 }
 // 登录/注册响应接口
@@ -261,7 +262,7 @@ class ApiService {
   }
 
   // ==========================================
-  // 文件上传
+  // 文件上传和文件消息
   // ==========================================
 
   async uploadFile(file: File, contactId: string): Promise<{
@@ -291,6 +292,88 @@ class ApiService {
     }
 
     return response.json();
+  }
+
+  async sendFileMessage(
+    recipientId: string,
+    file: File,
+    content?: string
+  ): Promise<Message> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('recipientId', recipientId);
+    if (content) {
+      formData.append('content', content);
+    }
+
+    const token = localStorage.getItem('auth_token');
+
+    const response = await fetch(`${this.baseUrl}/messages/send-file`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `Send file message failed! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const messageData = result.data || result;
+
+    return {
+      ...messageData,
+      timestamp: new Date(messageData.timestamp),
+    };
+  }
+
+  async downloadFile(fileId: string, fileName: string): Promise<void> {
+    const token = localStorage.getItem('auth_token');
+
+    const response = await fetch(`${this.baseUrl}/files/${fileId}`, {
+      method: 'GET',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `Download failed! status: ${response.status}`);
+    }
+
+    // 创建下载链接
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
+  async getFileDownloadUrl(fileId: string): Promise<string> {
+    const token = localStorage.getItem('auth_token');
+
+    const response = await fetch(`${this.baseUrl}/files/${fileId}/url`, {
+      method: 'GET',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `Get download URL failed! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data.downloadUrl;
   }
 
   // ==========================================
