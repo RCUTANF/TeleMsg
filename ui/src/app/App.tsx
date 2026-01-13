@@ -246,25 +246,29 @@ function App() {
     try {
       let messageData;
       if (file) {
-        messageData = await apiService.uploadFile(file, selectedContactId);
+        // 发送文件消息
+        messageData = await apiService.sendFileMessage(selectedContactId, file, content);
       } else {
+        // 发送文本消息
         messageData = await apiService.sendMessage(selectedContactId, content, type);
       }
 
       const newMessage: Message = {
         id: messageData.id || Date.now().toString(),
         senderId: currentUser.id,
-        content,
-        timestamp: new Date(),
-        type,
+        receiverId: selectedContactId,
+        content: messageData.content || content,
+        timestamp: new Date(messageData.timestamp || new Date()),
+        type: messageData.type || type,
         status: 'sent',
         fileUrl: messageData.fileUrl,
         fileName: messageData.fileName,
         fileSize: messageData.fileSize,
+        ...((messageData as any).fileId && { fileId: (messageData as any).fileId }),
       };
 
       setMessages((prev) => [...prev, newMessage]);
-      updateContactLastMessage(selectedContactId, content);
+      updateContactLastMessage(selectedContactId, file ? `[${file.type.startsWith('image/') ? '图片' : '文件'}] ${file.name}` : content);
 
       // 通过 WebSocket 发送
       apiService.sendWebSocketMessage({
