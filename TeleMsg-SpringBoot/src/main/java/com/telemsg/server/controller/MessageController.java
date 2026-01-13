@@ -471,7 +471,8 @@ public class MessageController {
         response.put("id", message.getMessageId());
         response.put("senderId", message.getSenderId());
         response.put("content", message.getContent());
-        response.put("timestamp", message.getCreateTime().toInstant(ZoneOffset.UTC).toEpochMilli());
+        // 使用东八区时区（GMT+8）
+        response.put("timestamp", message.getCreateTime().toInstant(ZoneOffset.of("+08:00")).toEpochMilli());
         response.put("type", message.getMessageType().name().toLowerCase());
 
         if (message.getMediaUrl() != null) {

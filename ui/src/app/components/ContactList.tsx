@@ -11,6 +11,7 @@ export interface Contact {
   avatar: string;
   status: 'online' | 'offline' | 'busy';
   lastMessage?: string;
+  lastMessageTime?: Date;
   unreadCount?: number;
   lastSeen?: string;
 }
@@ -30,6 +31,26 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
   };
 
   const recentChats = contacts.filter(c => c.lastMessage);
+
+  // 格式化时间显示
+  const formatTime = (date?: Date) => {
+    if (!date) return '';
+
+    const now = new Date();
+    const messageDate = new Date(date);
+    const diffInMs = now.getTime() - messageDate.getTime();
+    const diffInMinutes = Math.floor(diffInMs / 60000);
+    const diffInHours = Math.floor(diffInMs / 3600000);
+    const diffInDays = Math.floor(diffInMs / 86400000);
+
+    if (diffInMinutes < 1) return '刚刚';
+    if (diffInMinutes < 60) return `${diffInMinutes}分钟前`;
+    if (diffInHours < 24) return `${diffInHours}小时前`;
+    if (diffInDays === 1) return '昨天';
+    if (diffInDays < 7) return `${diffInDays}天前`;
+
+    return messageDate.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  };
 
   return (
     <div className="w-80 border-r bg-gray-50/50 flex flex-col h-full">
@@ -94,13 +115,18 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-semibold text-sm truncate">{contact.name}</span>
+                        <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                          {formatTime(contact.lastMessageTime)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-gray-500 truncate flex-1">{contact.lastMessage}</p>
                         {typeof contact.unreadCount === 'number' && contact.unreadCount > 0 && (
-                          <Badge variant="default" className="ml-2 bg-red-600 text-white">
+                          <Badge variant="default" className="ml-2 bg-red-600 text-white flex-shrink-0">
                             {contact.unreadCount}
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 truncate">{contact.lastMessage}</p>
                     </div>
                   </button>
                 ))

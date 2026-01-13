@@ -19,6 +19,7 @@ export interface Contact {
   avatar: string;
   status: 'online' | 'offline' | 'busy';
   lastMessage?: string;
+  lastMessageTime?: Date;
   unreadCount?: number;
   lastSeen?: string;
 }
@@ -26,6 +27,7 @@ export interface Contact {
 export interface Message {
   id: string;
   senderId: string;
+  receiverId?: string;
   content: string;
   timestamp: Date;
   type: 'text' | 'file' | 'image';
@@ -246,6 +248,16 @@ class ApiService {
 
   async markMessageAsRead(messageId: string): Promise<void> {
     await this.request(`/messages/${messageId}/read`, { method: 'PUT' });
+  }
+
+  async getRecentChats(userId: string): Promise<Message[]> {
+    const response = await this.request<any>(`/messages/recent/${userId}`);
+    // 后端返回的是 ApiResponse 格式: { success: true, message: "...", data: [...] }
+    const messages = response.data || response;
+    return Array.isArray(messages) ? messages.map((msg: any) => ({
+      ...msg,
+      timestamp: new Date(msg.timestamp || msg.createTime),
+    })) : [];
   }
 
   // ==========================================
