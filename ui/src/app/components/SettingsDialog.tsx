@@ -52,9 +52,6 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, on
   const [username, setUsername] = useState(currentUser.username);
   const [enableNotifications, setEnableNotifications] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [desktopNotifications, setDesktopNotifications] = useState(true);
-  const [theme, setTheme] = useState('light');
-  const [language, setLanguage] = useState('zh-CN');
 
   // 初始化代理设置
   const [proxyEnabled, setProxyEnabled] = useState(() => {
