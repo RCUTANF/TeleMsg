@@ -1,14 +1,21 @@
 $ErrorActionPreference = "Stop"
 
-$MinioExe = "E:\project\TeleMsg\TeleMsg-SpringBoot\lib\minio\minio.exe"
-$MinioData = "E:\project\TeleMsg\TeleMsg-SpringBoot\lib\minio\data"
+# 获取脚本所在目录的父目录作为项目根目录
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent $ScriptDir
+
+# 设置相对路径
+$MinioExe = Join-Path $ProjectRoot "lib\minio\minio.exe"
+$MinioData = Join-Path $ProjectRoot "lib\minio\data"
 
 Write-Host "Checking MinIO..." -ForegroundColor Yellow
+Write-Host "Project Root: $ProjectRoot" -ForegroundColor Gray
 
 # Check file exists
 $exists = Test-Path $MinioExe
 if ($exists -eq $false) {
     Write-Host "MinIO not installed!" -ForegroundColor Red
+    Write-Host "Run install-minio.ps1 first" -ForegroundColor Yellow
     pause
     exit
 }
@@ -16,7 +23,7 @@ if ($exists -eq $false) {
 # Check process
 $process = Get-Process -Name "minio" -ErrorAction SilentlyContinue
 if ($process) {
-    Write-Host "MinIO is running!" -ForegroundColor Yellow
+    Write-Host "MinIO is already running!" -ForegroundColor Yellow
     Write-Host "http://localhost:9001" -ForegroundColor Cyan
     pause
     exit
