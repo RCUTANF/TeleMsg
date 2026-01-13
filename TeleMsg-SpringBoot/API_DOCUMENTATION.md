@@ -216,6 +216,43 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 }
 ```
 
+### 发送文件消息
+- **URL**: `POST /messages/send-file`
+- **描述**: 发送带文件的私聊消息
+- **请求头**: `Authorization: Bearer <token>`
+- **请求体**: `multipart/form-data`
+  - `recipientId`: 接收者ID
+  - `file`: 要上传的文件
+  - `content`: 文件描述（可选）
+- **响应**:
+```json
+{
+  "success": true,
+  "message": "文件消息发送成功",
+  "data": {
+    "id": "消息ID",
+    "senderId": "发送者ID",
+    "content": "文件描述",
+    "timestamp": 1642123456789,
+    "type": "image|file|video|voice",
+    "fileUrl": "文件访问URL",
+    "fileName": "原始文件名",
+    "fileSize": "1024",
+    "status": "sent"
+  }
+}
+```
+
+### 发送群聊文件消息
+- **URL**: `POST /messages/send-group-file`
+- **描述**: 发送带文件的群聊消息
+- **请求头**: `Authorization: Bearer <token>`
+- **请求体**: `multipart/form-data`
+  - `groupId`: 群组ID
+  - `file`: 要上传的文件
+  - `content`: 文件描述（可选）
+- **响应**: 同发送文件消息
+
 ### 标记消息已读
 - **URL**: `PUT /messages/{messageId}/read`
 - **描述**: 标记指定消息为已读
@@ -402,7 +439,7 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 
 ### 文件上传
 - **URL**: `POST /files/upload`
-- **描述**: 上传文件
+- **描述**: 上传文件到MinIO存储
 - **请求头**: `Authorization: Bearer <token>`
 - **请求体**: `multipart/form-data`
   - `file`: 要上传的文件
@@ -410,16 +447,84 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 - **响应**:
 ```json
 {
-  "id": "文件ID",
-  "fileUrl": "文件访问URL",
-  "fileName": "原始文件名",
-  "fileSize": "文件大小（字节）"
+  "success": true,
+  "message": "文件上传成功",
+  "data": {
+    "fileId": "文件ID",
+    "fileName": "生成的文件名",
+    "originalFileName": "原始文件名",
+    "fileUrl": "文件访问URL",
+    "thumbnailUrl": "缩略图URL（图片类型）",
+    "fileSize": 1024,
+    "contentType": "image/jpeg",
+    "bucketName": "telemsg-files",
+    "objectKey": "2024/01/13/uuid.jpg",
+    "uploadTime": 1642123456789
+  }
 }
 ```
 
-### 文件访问
+### 获取文件下载链接
+- **URL**: `GET /files/{fileId}/url`
+- **描述**: 获取文件的预签名下载URL
+- **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+{
+  "success": true,
+  "data": {
+    "downloadUrl": "https://minio.example.com/bucket/path?X-Amz-Expires=3600..."
+  }
+}
+```
+
+### 直接下载文件
+- **URL**: `GET /files/{fileId}`
+- **描述**: 直接下载文件
+- **请求头**: `Authorization: Bearer <token>` （可选）
+- **响应**: 文件二进制数据
+
+### 获取��件信息
+- **URL**: `GET /files/{fileId}/info`
+- **描述**: 获取文件详细信息
+- **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "fileId": "文件ID",
+    "originalFilename": "原始文件名",
+    "filename": "存储文件名",
+    "contentType": "image/jpeg",
+    "fileSize": 1024,
+    "bucketName": "telemsg-files",
+    "objectKey": "2024/01/13/uuid.jpg",
+    "fileUrl": "文件访问URL",
+    "thumbnailUrl": "缩略图URL",
+    "uploaderId": "上传者ID",
+    "createdTime": "2024-01-13T10:30:00",
+    "isImage": true
+  }
+}
+```
+
+### 删除文件
+- **URL**: `DELETE /files/{fileId}`
+- **描述**: 删除文件（仅上传者可删除）
+- **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+{
+  "success": true,
+  "message": "文件删除成功"
+}
+```
+
+### 文件访问（兼容旧版）
 - **URL**: `GET /files/{filename}`
-- **描述**: 访问/下载文件
+- **描述**: 通过文件名访问文件（兼容性接口）
 - **响应**: 文件二进制数据
 
 ## 视频通话 API

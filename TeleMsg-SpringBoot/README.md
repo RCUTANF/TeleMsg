@@ -99,6 +99,29 @@ CREATE DATABASE telemsg_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 ### 3. 构建和运行
 
+#### 使用Docker Compose (推荐生产环境)
+```bash
+# 启动完整服务 (包含MySQL, Redis, MinIO)
+docker-compose up -d
+
+# 仅启动应用
+./gradlew bootRun
+```
+
+#### Windows原生开发环境 (推荐开发环境)
+```batch
+# 1. 安装MinIO (仅需运行一次)
+scripts\install-minio.bat
+
+# 2. 启动开发环境 (MinIO + TeleMsg)
+scripts\start-dev-environment.bat
+
+# 3. 或者分别启动
+scripts\start-minio.bat       # 启动MinIO
+gradlew.bat bootRun          # 启动TeleMsg应用
+```
+
+#### 手动构建运行
 ```bash
 # 克隆项目
 cd TeleMsg-SpringBoot
@@ -109,9 +132,11 @@ cd TeleMsg-SpringBoot
 # 运行服务
 ./gradlew bootRun
 
-# 或使用自定义任���
+# 或使用自定义任务
 ./gradlew runServer
 ```
+
+> **💡 开发提示**: Windows用户推荐使用原生MinIO方案，无需Docker环境，启动更快。详见 [MINIO_WINDOWS_SETUP.md](./MINIO_WINDOWS_SETUP.md)
 
 ### 4. 验证运行
 

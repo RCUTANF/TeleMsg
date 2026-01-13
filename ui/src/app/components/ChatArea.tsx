@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { apiService } from '../services/api';
 
 export interface Message {
   id: string;
@@ -33,6 +34,7 @@ export interface Message {
   fileUrl?: string;
   fileName?: string;
   fileSize?: string;
+  fileId?: string;
   status: 'sending' | 'sent' | 'read';
 }
 
@@ -82,6 +84,20 @@ export function ChatArea({
     if (file) {
       const type = file.type.startsWith('image/') ? 'image' : 'file';
       onSendMessage(file.name, type, file);
+    }
+  };
+
+  const handleDownloadFile = async (message: Message) => {
+    if (!message.fileId || !message.fileName) {
+      console.error('Missing file information for download');
+      return;
+    }
+
+    try {
+      await apiService.downloadFile(message.fileId, message.fileName);
+    } catch (error) {
+      console.error('Failed to download file:', error);
+      alert('文件下载失败，请稍后重试');
     }
   };
 
@@ -203,7 +219,13 @@ export function ChatArea({
                           <div className="font-medium text-sm truncate">{message.fileName}</div>
                           <div className="text-xs text-gray-500">{message.fileSize}</div>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleDownloadFile(message)}
+                          title="下载文件"
+                        >
                           <Download className="h-4 w-4" />
                         </Button>
                       </div>

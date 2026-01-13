@@ -1,25 +1,26 @@
 package com.telemsg.server.controller;
 
+import com.telemsg.server.dto.FileUploadResponse;
+import com.telemsg.server.entity.FileInfo;
 import com.telemsg.server.service.JwtService;
+import com.telemsg.server.service.MinIOService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
 import java.util.Map;
-import java.util.HashMap;
-import java.util.UUID;
+import java.util.Optional;
 
 /**
- * 文件上传相关REST API
+ * 文件上传相关REST API (使用MinIO存储)
  *
  * @author TeleMsg Team
+ * @since 1.0.0
  */
 @Slf4j
 @RestController
@@ -28,20 +29,14 @@ import java.util.UUID;
 public class FileController {
 
     private final JwtService jwtService;
-
-    @Value("${file.upload-dir:uploads}")
-    private String uploadDir;
-
-    @Value("${server.servlet.context-path:/api}")
-    private String contextPath;
+    private final MinIOService minIOService;
 
     /**
      * 文件上传
      */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestHeader("Authorization") String authHeader,
-                                      @RequestParam("file") MultipartFile file,
-                                      @RequestParam(value = "contactId", required = false) String contactId) {
+                                      @RequestParam("file") MultipartFile file) {
         try {
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "文件不能为空"));
@@ -49,72 +44,150 @@ public class FileController {
 
             String userId = extractUserIdFromToken(authHeader);
 
-            // 创建上传目录
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
+            // 使用MinIO服务上传文件
+            FileUploadResponse response = minIOService.uploadFile(file, userId);
 
-            // 生成唯一文件名
-            String originalFilename = file.getOriginalFilename();
-            String extension = "";
-            if (originalFilename != null && originalFilename.contains(".")) {
-                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-            }
+            log.info("File uploaded successfully by user {}: {}", userId, response.getOriginalFileName());
 
-            String uniqueFilename = UUID.randomUUID().toString() + extension;
-            Path filePath = uploadPath.resolve(uniqueFilename);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "文件上传成功",
+                "data", response
+            ));
 
-            // 保存文件
-            Files.copy(file.getInputStream(), filePath);
+        } catch (IllegalArgumentException e) {
+            log.warn("File upload validation failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
 
-            // 构建文件URL
-            String fileUrl = contextPath + "/files/" + uniqueFilename;
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("id", UUID.randomUUID().toString());
-            response.put("fileUrl", fileUrl);
-            response.put("fileName", originalFilename);
-            response.put("fileSize", String.valueOf(file.getSize()));
-
-            return ResponseEntity.ok(response);
-
-        } catch (IOException e) {
-            log.error("文件上传失败", e);
-            return ResponseEntity.badRequest().body(Map.of("error", "文件上传失败: " + e.getMessage()));
         } catch (Exception e) {
-            log.error("文件上传处理失败", e);
-            return ResponseEntity.badRequest().body(Map.of("error", "上传失败"));
+            log.error("File upload failed: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "文件上传失败: " + e.getMessage()));
         }
     }
 
     /**
-     * 文件下载/访问
+     * 获取文件下载链接
      */
-    @GetMapping("/{filename}")
-    public ResponseEntity<?> getFile(@PathVariable String filename) {
+    @GetMapping("/{fileId}/url")
+    public ResponseEntity<?> getFileDownloadUrl(@RequestHeader("Authorization") String authHeader,
+                                               @PathVariable String fileId) {
         try {
-            Path filePath = Paths.get(uploadDir).resolve(filename);
+            extractUserIdFromToken(authHeader); // 验证token
 
-            if (!Files.exists(filePath)) {
+            String downloadUrl = minIOService.getDownloadUrl(fileId);
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", Map.of("downloadUrl", downloadUrl)
+            ));
+
+        } catch (Exception e) {
+            log.error("Failed to get download URL for file {}: {}", fileId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "获取文件下载链接失败"));
+        }
+    }
+
+    /**
+     * 直接下载文件
+     */
+    @GetMapping("/{fileId}")
+    public ResponseEntity<?> downloadFile(@RequestHeader(value = "Authorization", required = false) String authHeader,
+                                         @PathVariable String fileId) {
+        try {
+            // 如果有认证头，验证token
+            if (authHeader != null && !authHeader.isEmpty()) {
+                extractUserIdFromToken(authHeader);
+            }
+
+            Optional<FileInfo> fileInfoOpt = minIOService.getFileInfo(fileId);
+            if (fileInfoOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
 
-            byte[] fileBytes = Files.readAllBytes(filePath);
+            FileInfo fileInfo = fileInfoOpt.get();
+            InputStream fileStream = minIOService.getFileStream(fileId);
 
-            // 根据文件扩展名设置Content-Type
-            String contentType = Files.probeContentType(filePath);
-            if (contentType == null) {
-                contentType = "application/octet-stream";
-            }
+            HttpHeaders headers = new HttpHeaders();
+            headers.add(HttpHeaders.CONTENT_DISPOSITION,
+                       "attachment; filename=\"" + fileInfo.getOriginalFilename() + "\"");
+            headers.add(HttpHeaders.CONTENT_TYPE, fileInfo.getContentType());
+            headers.add(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileInfo.getFileSize()));
 
             return ResponseEntity.ok()
-                    .header("Content-Type", contentType)
-                    .body(fileBytes);
+                    .headers(headers)
+                    .body(new InputStreamResource(fileStream));
 
-        } catch (IOException e) {
-            log.error("文件访问失败: {}", filename, e);
-            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Failed to download file {}: {}", fileId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "文件下载失败"));
+        }
+    }
+
+    /**
+     * 获取文件信息
+     */
+    @GetMapping("/{fileId}/info")
+    public ResponseEntity<?> getFileInfo(@RequestHeader("Authorization") String authHeader,
+                                        @PathVariable String fileId) {
+        try {
+            extractUserIdFromToken(authHeader); // 验证token
+
+            Optional<FileInfo> fileInfoOpt = minIOService.getFileInfo(fileId);
+            if (fileInfoOpt.isEmpty()) {
+                return ResponseEntity.status(404).body(Map.of("error", "文件不存在"));
+            }
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", fileInfoOpt.get()
+            ));
+
+        } catch (Exception e) {
+            log.error("Failed to get file info for {}: {}", fileId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "获取文件信息失败"));
+        }
+    }
+
+    /**
+     * 删除文件
+     */
+    @DeleteMapping("/{fileId}")
+    public ResponseEntity<?> deleteFile(@RequestHeader("Authorization") String authHeader,
+                                       @PathVariable String fileId) {
+        try {
+            String userId = extractUserIdFromToken(authHeader);
+
+            // 检查文件是否存在以及是否有删除权限
+            Optional<FileInfo> fileInfoOpt = minIOService.getFileInfo(fileId);
+            if (fileInfoOpt.isEmpty()) {
+                return ResponseEntity.status(404).body(Map.of("error", "文件不存在"));
+            }
+
+            FileInfo fileInfo = fileInfoOpt.get();
+            // 只允许文件上传者删除文件 (后续可以扩展管理员权限)
+            if (!userId.equals(fileInfo.getUploaderId())) {
+                return ResponseEntity.status(403).body(Map.of("error", "无权限删除此文件"));
+            }
+
+            boolean deleted = minIOService.deleteFile(fileId);
+            if (deleted) {
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "文件删除成功"
+                ));
+            } else {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "文件删除失败"));
+            }
+
+        } catch (Exception e) {
+            log.error("Failed to delete file {}: {}", fileId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "文件删除失败"));
         }
     }
 
@@ -122,15 +195,12 @@ public class FileController {
      * 从JWT token中提取用户ID
      */
     private String extractUserIdFromToken(String authHeader) {
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            try {
-                return jwtService.extractUserId(token);
-            } catch (Exception e) {
-                log.error("解析JWT token失败", e);
-                throw new RuntimeException("无效的认证token");
-            }
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("无效的认证信息");
         }
-        throw new RuntimeException("无效的认证token");
+
+        String token = authHeader.substring(7);
+        return jwtService.extractUserId(token);
     }
 }
+
