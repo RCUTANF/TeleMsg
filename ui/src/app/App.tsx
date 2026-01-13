@@ -214,7 +214,9 @@ function App() {
     }
   };
 
-  const handleCreateGroup = (name: string, members: string[]) => {
+  const handleCreateGroup = async (name: string, members: string[]) => {
+    if (!currentUser) return;
+
     // 检查是否已存在同名群聊
     const existingGroup = contacts.find(c => c.isGroup && c.name === name);
     if (existingGroup) {
@@ -222,17 +224,36 @@ function App() {
       return;
     }
 
-    const newGroup: Contact = {
-      id: Date.now().toString(),
-      name,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-      status: 'online',
-      isGroup: true,
-      memberCount: members.length + 1, // 包含创建者
-      role: 'owner'
-    };
-    setContacts([...contacts, newGroup]);
-    toast.success(`群聊 "${name}" 已创建`);
+    try {
+      // 调用 API 创建群聊
+      const groupData = await apiService.createGroup(name, '', currentUser.id);
+
+      // 将其他成员加入群聊
+      for (const memberId of members) {
+        try {
+          await apiService.joinGroup(groupData.groupId, memberId);
+        } catch (error) {
+          console.error(`Failed to add member ${memberId} to group:`, error);
+        }
+      }
+
+      // 创建本地联系人对象
+      const newGroup: Contact = {
+        id: groupData.groupId,
+        name: groupData.groupName,
+        avatar: groupData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+        status: 'online',
+        isGroup: true,
+        memberCount: members.length + 1, // 包含创建者
+        role: 'owner'
+      };
+
+      setContacts([...contacts, newGroup]);
+      toast.success(`群聊 "${name}" 已创建`);
+    } catch (error) {
+      console.error('Failed to create group:', error);
+      toast.error('创建群聊失败，请重试');
+    }
   };
 
   const handleAddDiscussionSpaceMember = async (spaceId: string, newMembers: string[]) => {
@@ -303,16 +324,58 @@ function App() {
     toast.success('安全策略已成功保存');
   };
 
+  // 加载群组列表
+  const loadGroups = async (userId: string) => {
+    try {
+      const groupMembers = await apiService.getUserGroups(userId);
+
+      // 为每个群组获取详细信息
+      const groupPromises = groupMembers.map(async (member: any) => {
+        try {
+          const groupInfo = await apiService.getGroupInfo(member.groupId);
+          const members = await apiService.getGroupMembers(member.groupId);
+
+          return {
+            id: groupInfo.groupId,
+            name: groupInfo.groupName,
+            avatar: groupInfo.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${groupInfo.groupName}`,
+            status: 'online' as const,
+            isGroup: true,
+            memberCount: members.length,
+            role: member.role.toLowerCase()
+          };
+        } catch (error) {
+          console.error(`Failed to load group ${member.groupId}:`, error);
+          return null;
+        }
+      });
+
+      const groups = (await Promise.all(groupPromises)).filter(g => g !== null);
+      return groups as Contact[];
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+      return [];
+    }
+  };
+
   // 加载联系人列表
   const loadContacts = async (userId?: string) => {
     try {
-      const contactsData = await apiService.getContacts();
-      setContacts(contactsData);
+      const userIdToUse = userId || currentUser?.id;
+
+      // 并行加载联系人和群组
+      const [contactsData, groups] = await Promise.all([
+        apiService.getContacts(),
+        userIdToUse ? loadGroups(userIdToUse) : Promise.resolve([])
+      ]);
+
+      // 合并联系人和群组
+      const allContacts = [...contactsData, ...groups];
+      setContacts(allContacts);
 
       // 加载最近聊天记录
-      const userIdToUse = userId || currentUser?.id;
       if (userIdToUse) {
-        await loadRecentChats(userIdToUse, contactsData);
+        await loadRecentChats(userIdToUse, allContacts);
       }
     } catch (error) {
       console.error('Failed to load contacts:', error);
@@ -325,30 +388,43 @@ function App() {
     try {
       const recentMessages = await apiService.getRecentChats(userId);
 
-      // 创建一个 Map 来存储每个联系人的最后一条消息
-      const lastMessageMap = new Map<string, { content: string; timestamp: Date }>();
-      // 存储需要查询未读数的联系人ID
+      // 创建一个 Map 来存储每个联系人/群组的最后一条消息
+      const lastMessageMap = new Map<string, { content: string; timestamp: Date; senderId: string }>();
+      // 存储需要查询未读数的联系人ID（不包括群组）
       const contactIds = new Set<string>();
+      // 存储群组ID
+      const groupIds = new Set<string>();
 
-      recentMessages.forEach((msg: Message) => {
-        // 确定对话的另一方 ID
-        const otherUserId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+      recentMessages.forEach((msg: any) => {
+        let conversationId: string;
 
-        if (otherUserId) {
-          contactIds.add(otherUserId);
+        // 判断是群聊还是私聊
+        if (msg.groupId) {
+          // 群聊消息
+          conversationId = msg.groupId;
+          groupIds.add(conversationId);
+        } else {
+          // 私聊消息 - 确定对话的另一方 ID
+          conversationId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+          if (conversationId) {
+            contactIds.add(conversationId);
+          }
+        }
 
+        if (conversationId) {
           // 只保留最新的消息
-          const existing = lastMessageMap.get(otherUserId);
+          const existing = lastMessageMap.get(conversationId);
           if (!existing || msg.timestamp > existing.timestamp) {
-            lastMessageMap.set(otherUserId, {
+            lastMessageMap.set(conversationId, {
               content: msg.content,
-              timestamp: msg.timestamp
+              timestamp: msg.timestamp,
+              senderId: msg.senderId
             });
           }
         }
       });
 
-      // 为每个联系人查询未读消息数
+      // 为每个私聊联系人查询未读消息数
       const unreadCountMap = new Map<string, number>();
       await Promise.all(
         Array.from(contactIds).map(async (contactId) => {
@@ -362,6 +438,34 @@ function App() {
           }
         })
       );
+
+      // 为每个群聊计算未读消息数（通过比对消息时间）
+      for (const groupId of Array.from(groupIds)) {
+        try {
+          // 获取该群聊的所有消息
+          const groupMessages = await apiService.getGroupMessages(groupId, 0, 100);
+
+          // 获取本地存储的最后阅读时间
+          const lastReadTimeStr = localStorage.getItem(`group_${groupId}_lastRead`);
+          const lastReadTime = lastReadTimeStr ? new Date(lastReadTimeStr) : new Date(0);
+
+          // 计算未读消息数量（发送时间晚于最后阅读时间且不是自己发的）
+          const unreadCount = groupMessages.filter(msg =>
+            msg.timestamp > lastReadTime && msg.senderId !== userId
+          ).length;
+
+          if (unreadCount > 0) {
+            unreadCountMap.set(groupId, unreadCount);
+          }
+        } catch (error) {
+          console.error(`Failed to get unread count for group ${groupId}:`, error);
+          // 降级处理：如果最后一条消息不是自己发的，标记为有未读
+          const lastMsg = lastMessageMap.get(groupId);
+          if (lastMsg && lastMsg.senderId !== userId) {
+            unreadCountMap.set(groupId, 1);
+          }
+        }
+      }
 
       // 更新联系人列表，添加 lastMessage、lastMessageTime 和 unreadCount
       const updatedContacts = contactsList.map((contact: Contact) => {
@@ -397,7 +501,19 @@ function App() {
   // 加载聊天记录
   const loadMessages = async (contactId: string) => {
     try {
-      const messagesData = await apiService.getMessages(contactId);
+      // 判断是否为群聊
+      const selectedContact = contacts.find(c => c.id === contactId);
+      const isGroupChat = selectedContact?.isGroup || false;
+
+      let messagesData;
+      if (isGroupChat) {
+        // 获取群聊消息
+        messagesData = await apiService.getGroupMessages(contactId);
+      } else {
+        // 获取私聊消息
+        messagesData = await apiService.getMessages(contactId);
+      }
+
       setMessagesByContact(prev => ({
         ...prev,
         [contactId]: messagesData
@@ -408,9 +524,18 @@ function App() {
   };
 
   // 处理新消息
-  const handleNewMessage = async (message: Message) => {
-    // 确定消息的对话 ID（对方的 ID）
-    const conversationId = message.senderId === currentUser?.id ? message.receiverId : message.senderId;
+  const handleNewMessage = async (message: any) => {
+    // 确定消息的对话 ID
+    let conversationId: string;
+
+    // 判断是群聊还是私聊
+    if (message.groupId) {
+      // 群聊消息
+      conversationId = message.groupId;
+    } else {
+      // 私聊消息（对方的 ID）
+      conversationId = message.senderId === currentUser?.id ? message.receiverId : message.senderId;
+    }
 
     if (!conversationId) return;
 
@@ -424,22 +549,47 @@ function App() {
 
     // 更新联系人的最后消息（只有当消息不是当前用户发送的时候才更新）
     if (message.senderId !== currentUser?.id) {
-      const shouldIncrement = message.senderId !== selectedContactId;
-      await updateContactLastMessage(message.senderId, message.content, shouldIncrement);
+      const shouldIncrement = conversationId !== selectedContactId;
+      await updateContactLastMessage(conversationId, message.content, shouldIncrement, !!message.groupId);
     }
   };
 
   // 更新联系人最后消息
-  const updateContactLastMessage = async (contactId: string, lastMessage: string, incrementUnread: boolean = false) => {
-    // 如果需要增加未读计数，从后端获取准确的未读数
+  const updateContactLastMessage = async (
+    contactId: string,
+    lastMessage: string,
+    incrementUnread: boolean = false,
+    isGroup: boolean = false
+  ) => {
+    // 如果需要增加未读计数
     let actualUnreadCount: number | undefined;
     if (incrementUnread && currentUser) {
-      try {
-        const count = await apiService.getUnreadCountFromSender(currentUser.id, contactId);
-        // 只有当count > 0时才设置，否则为undefined
-        actualUnreadCount = count > 0 ? count : undefined;
-      } catch (error) {
-        console.error('Failed to get unread count:', error);
+      if (isGroup) {
+        // 群聊：计算实际未读消息数量
+        try {
+          const groupMessages = await apiService.getGroupMessages(contactId, 0, 100);
+          const lastReadTimeStr = localStorage.getItem(`group_${contactId}_lastRead`);
+          const lastReadTime = lastReadTimeStr ? new Date(lastReadTimeStr) : new Date(0);
+
+          const unreadCount = groupMessages.filter(msg =>
+            msg.timestamp > lastReadTime && msg.senderId !== currentUser.id
+          ).length;
+
+          actualUnreadCount = unreadCount > 0 ? unreadCount : undefined;
+        } catch (error) {
+          console.error('Failed to get group unread count:', error);
+          // 降级处理：使用简单计数
+          actualUnreadCount = 1;
+        }
+      } else {
+        // 私聊：从后端获取准确的未读数
+        try {
+          const count = await apiService.getUnreadCountFromSender(currentUser.id, contactId);
+          // 只有当count > 0时才设置，否则为undefined
+          actualUnreadCount = count > 0 ? count : undefined;
+        } catch (error) {
+          console.error('Failed to get unread count:', error);
+        }
       }
     }
 
@@ -456,8 +606,8 @@ function App() {
           if (incrementUnread) {
             if (actualUnreadCount !== undefined) {
               newContact.unreadCount = actualUnreadCount;
-            } else {
-              // API调用失败时回退到+1逻辑，但如果结果是0则不设置
+            } else if (!isGroup) {
+              // 私聊且API调用失败时回退到+1逻辑
               const fallbackCount = (c.unreadCount || 0) + 1;
               newContact.unreadCount = fallbackCount > 0 ? fallbackCount : undefined;
             }
@@ -522,19 +672,26 @@ function App() {
     setSelectedContactId(contactId);
     loadMessages(contactId);
 
+    // 判断是否为群聊
+    const selectedContact = contacts.find(c => c.id === contactId);
+    const isGroupChat = selectedContact?.isGroup || false;
+
     // 立即清除前端显示的未读计数
     setContacts((prev) =>
       prev.map((c) => (c.id === contactId ? { ...c, unreadCount: undefined } : c))
     );
 
-    // 标记与该联系人的所有消息为已读
-    if (currentUser) {
-      try {
-        await apiService.markPrivateMessagesAsRead(contactId, currentUser.id);
-        // 标记成功后，重新加载联系人列表以确保状态同步
-        // 注意：这里不重新加载整个列表，只更新当前联系人的未读数为0
-      } catch (error) {
-        console.error('Failed to mark messages as read:', error);
+    if (isGroupChat) {
+      // 群聊：保存当前时间为最后阅读时间
+      localStorage.setItem(`group_${contactId}_lastRead`, new Date().toISOString());
+    } else {
+      // 私聊：标记与该联系人的所有消息为已读
+      if (currentUser) {
+        try {
+          await apiService.markPrivateMessagesAsRead(contactId, currentUser.id);
+        } catch (error) {
+          console.error('Failed to mark messages as read:', error);
+        }
       }
     }
   };
@@ -547,20 +704,32 @@ function App() {
   ) => {
     if (!currentUser || !selectedContactId) return;
 
+    // 判断是否为群聊
+    const selectedContact = contacts.find(c => c.id === selectedContactId);
+    const isGroupChat = selectedContact?.isGroup || false;
+
     try {
       let messageData;
       if (file) {
         // 发送文件消息
-        messageData = await apiService.sendFileMessage(selectedContactId, file, content);
+        if (isGroupChat) {
+          messageData = await apiService.sendGroupFileMessage(currentUser.id, selectedContactId, file, content);
+        } else {
+          messageData = await apiService.sendFileMessage(selectedContactId, file, content);
+        }
       } else {
         // 发送文本消息
-        messageData = await apiService.sendMessage(selectedContactId, content, type);
+        if (isGroupChat) {
+          messageData = await apiService.sendGroupMessage(currentUser.id, selectedContactId, content, type);
+        } else {
+          messageData = await apiService.sendMessage(selectedContactId, content, type);
+        }
       }
 
       const newMessage: Message = {
         id: messageData.id || Date.now().toString(),
         senderId: currentUser.id,
-        receiverId: selectedContactId,
+        receiverId: isGroupChat ? undefined : selectedContactId,
         content: messageData.content || content,
         timestamp: new Date(messageData.timestamp || new Date()),
         type: messageData.type || type,
@@ -591,7 +760,12 @@ function App() {
             }));
         }
 
-      updateContactLastMessage(selectedContactId, file ? `[${file.type.startsWith('image/') ? '图片' : '文件'}] ${file.name}` : content);
+      updateContactLastMessage(
+        selectedContactId,
+        file ? `[${file.type.startsWith('image/') ? '图片' : '文件'}] ${file.name}` : content,
+        false,
+        isGroupChat
+      );
 
       // 通过 WebSocket 发送
       apiService.sendWebSocketMessage({
@@ -601,6 +775,7 @@ function App() {
       });
     } catch (error) {
       console.error('Failed to send message:', error);
+      toast.error('发送消息失败: ' + (error instanceof Error ? error.message : '未知错误'));
     }
   };
 

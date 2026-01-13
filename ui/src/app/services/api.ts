@@ -242,6 +242,27 @@ class ApiService {
     }));
   }
 
+  async getGroupMessages(groupId: string, page: number = 0, size: number = 50): Promise<Message[]> {
+    const response = await this.request<any>(`/messages/group/${groupId}?page=${page}&size=${size}`);
+    const messages = response.data?.content || response.content || [];
+    const mappedMessages = messages.map((msg: any) => ({
+      id: msg.messageId || msg.id,
+      senderId: msg.senderId,
+      receiverId: msg.receiverId,
+      content: msg.content,
+      timestamp: new Date(msg.timestamp || msg.createTime),
+      type: (msg.messageType || msg.type || 'text').toLowerCase() as 'text' | 'file' | 'image',
+      fileUrl: msg.mediaUrl || msg.fileUrl,
+      fileName: msg.fileName,
+      fileSize: msg.fileSize?.toString(),
+      fileId: msg.fileId,
+      status: 'sent' as const,
+    }));
+
+    // 按时间正序排序（早的消息在上面）
+    return mappedMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  }
+
   async sendMessage(
       recipientId: string,
       content: string,
@@ -254,6 +275,37 @@ class ApiService {
     return {
       ...message,
       timestamp: new Date(message.timestamp),
+    };
+  }
+
+  async sendGroupMessage(
+      senderId: string,
+      groupId: string,
+      content: string,
+      messageType: 'text' | 'file' | 'image' = 'text'
+  ): Promise<Message> {
+    const response = await this.request<any>('/messages/group', {
+      method: 'POST',
+      body: JSON.stringify({
+        senderId,
+        groupId,
+        content,
+        messageType: messageType.toUpperCase()
+      }),
+    });
+    const messageData = response.data || response;
+    return {
+      id: messageData.messageId || messageData.id,
+      senderId: messageData.senderId,
+      receiverId: messageData.receiverId,
+      content: messageData.content,
+      timestamp: new Date(messageData.timestamp || messageData.createTime),
+      type: (messageData.messageType || messageData.type || messageType).toLowerCase() as 'text' | 'file' | 'image',
+      fileUrl: messageData.mediaUrl || messageData.fileUrl,
+      fileName: messageData.fileName,
+      fileSize: messageData.fileSize?.toString(),
+      fileId: messageData.fileId,
+      status: 'sent' as const,
     };
   }
 
@@ -349,6 +401,53 @@ class ApiService {
     return {
       ...messageData,
       timestamp: new Date(messageData.timestamp),
+    };
+  }
+
+  async sendGroupFileMessage(
+    senderId: string,
+    groupId: string,
+    file: File,
+    content?: string
+  ): Promise<Message> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('senderId', senderId);
+    formData.append('groupId', groupId);
+    if (content) {
+      formData.append('content', content);
+    }
+
+    const token = localStorage.getItem('auth_token');
+
+    const response = await fetch(`${this.baseUrl}/messages/send-group-file`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `Send group file message failed! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const messageData = result.data || result;
+
+    return {
+      id: messageData.messageId || messageData.id,
+      senderId: messageData.senderId,
+      receiverId: messageData.receiverId,
+      content: messageData.content || content || file.name,
+      timestamp: new Date(messageData.timestamp || messageData.createTime),
+      type: file.type.startsWith('image/') ? 'image' : 'file',
+      fileUrl: messageData.mediaUrl || messageData.fileUrl,
+      fileName: messageData.fileName || file.name,
+      fileSize: messageData.fileSize?.toString(),
+      fileId: messageData.fileId,
+      status: 'sent' as const,
     };
   }
 
@@ -507,9 +606,34 @@ class ApiService {
   // 群组相关
   // ==========================================
 
+  async createGroup(groupName: string, description: string, ownerId: string): Promise<any> {
+    const response = await this.request<any>('/groups', {
+      method: 'POST',
+      body: JSON.stringify({ groupName, description, ownerId }),
+    });
+    return response.data || response;
+  }
+
+  async getUserGroups(userId: string): Promise<any[]> {
+    const response = await this.request<any>(`/groups/user/${userId}`);
+    return response.data || response;
+  }
+
+  async getGroupInfo(groupId: string): Promise<any> {
+    const response = await this.request<any>(`/groups/${groupId}`);
+    return response.data || response;
+  }
+
   async getGroupMembers(groupId: string): Promise<User[]> {
     const response = await this.request<any>(`/groups/${groupId}/members`);
     return response.data || response;
+  }
+
+  async joinGroup(groupId: string, userId: string, nickname?: string): Promise<void> {
+    await this.request(`/groups/${groupId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, nickname }),
+    });
   }
 
   // ==========================================
