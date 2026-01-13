@@ -57,7 +57,18 @@ public class User {
     @Column(length = 50)
     private String lastLoginIp;
 
+    @Column
+    private Boolean isAdmin = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private UserRole role = UserRole.EMPLOYEE;
+
     public enum UserStatus {
         ONLINE, OFFLINE, BUSY, AWAY
+    }
+
+    public enum UserRole {
+        DIRECTOR, MANAGER, EMPLOYEE
     }
 }
