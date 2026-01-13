@@ -250,6 +250,18 @@ class ApiService {
     await this.request(`/messages/${messageId}/read`, { method: 'PUT' });
   }
 
+  async markPrivateMessagesAsRead(senderId: string, receiverId: string): Promise<void> {
+    await this.request('/messages/private/read', {
+      method: 'PUT',
+      body: JSON.stringify({ senderId, receiverId }),
+    });
+  }
+
+  async getUnreadCountFromSender(receiverId: string, senderId: string): Promise<number> {
+    const response = await this.request<any>(`/messages/unread/${receiverId}/from/${senderId}`);
+    return response.data?.unreadCount || 0;
+  }
+
   async getRecentChats(userId: string): Promise<Message[]> {
     const response = await this.request<any>(`/messages/recent/${userId}`);
     // 后端返回的是 ApiResponse 格式: { success: true, message: "...", data: [...] }

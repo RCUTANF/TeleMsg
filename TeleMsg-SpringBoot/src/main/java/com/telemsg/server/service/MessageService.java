@@ -162,6 +162,13 @@ public class MessageService {
     }
 
     /**
+     * 统计来自特定发送者的未读消息数量
+     */
+    public long countUnreadMessagesFromSender(String receiverId, String senderId) {
+        return messageRepository.countUnreadMessagesFromSender(receiverId, senderId);
+    }
+
+    /**
      * 统计群聊未读消息数量
      */
     public long countUnreadGroupMessages(String groupId, String userId, LocalDateTime lastReadTime) {

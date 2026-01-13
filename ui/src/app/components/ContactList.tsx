@@ -119,11 +119,14 @@ export function ContactList({ contacts, selectedContactId, onSelectContact, curr
                           {formatTime(contact.lastMessageTime)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <p className="text-xs text-gray-500 truncate flex-1">{contact.lastMessage}</p>
-                        {typeof contact.unreadCount === 'number' && contact.unreadCount > 0 && (
-                          <Badge variant="default" className="ml-2 bg-red-600 text-white flex-shrink-0">
-                            {contact.unreadCount}
+                        {contact.unreadCount && contact.unreadCount > 0 && (
+                          <Badge
+                            variant="default"
+                            className="ml-auto bg-red-500 hover:bg-red-500 text-white text-xs px-2 py-0.5 min-w-[20px] h-5 flex items-center justify-center rounded-full flex-shrink-0"
+                          >
+                            {contact.unreadCount > 99 ? '99+' : contact.unreadCount}
                           </Badge>
                         )}
                       </div>

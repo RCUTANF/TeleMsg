@@ -103,12 +103,16 @@ function App() {
 
       // 创建一个 Map 来存储每个联系人的最后一条消息
       const lastMessageMap = new Map<string, { content: string; timestamp: Date }>();
+      // 存储需要查询未读数的联系人ID
+      const contactIds = new Set<string>();
 
       recentMessages.forEach((msg: Message) => {
         // 确定对话的另一方 ID
         const otherUserId = msg.senderId === userId ? msg.receiverId : msg.senderId;
 
         if (otherUserId) {
+          contactIds.add(otherUserId);
+
           // 只保留最新的消息
           const existing = lastMessageMap.get(otherUserId);
           if (!existing || msg.timestamp > existing.timestamp) {
@@ -120,17 +124,34 @@ function App() {
         }
       });
 
-      // 更新联系人列表，添加 lastMessage 和 lastMessageTime
+      // 为每个联系人查询未读消息数
+      const unreadCountMap = new Map<string, number>();
+      await Promise.all(
+        Array.from(contactIds).map(async (contactId) => {
+          try {
+            const count = await apiService.getUnreadCountFromSender(userId, contactId);
+            if (count > 0) {
+              unreadCountMap.set(contactId, count);
+            }
+          } catch (error) {
+            console.error(`Failed to get unread count for ${contactId}:`, error);
+          }
+        })
+      );
+
+      // 更新联系人列表，添加 lastMessage、lastMessageTime 和 unreadCount
       const updatedContacts = contactsList.map((contact: Contact) => {
         const lastMsg = lastMessageMap.get(contact.id);
+        const unreadCount = unreadCountMap.get(contact.id);
         if (lastMsg) {
           return {
             ...contact,
             lastMessage: lastMsg.content,
-            lastMessageTime: lastMsg.timestamp
+            lastMessageTime: lastMsg.timestamp,
+            unreadCount: unreadCount // 只有当unreadCount > 0时才在Map中，否则为undefined
           };
         }
-        return contact;
+        return contact; // 没有最近消息的联系人保持原样
       });
 
       // 按最后消息时间排序（有消息的在前）
@@ -160,22 +181,57 @@ function App() {
   };
 
   // 处理新消息
-  const handleNewMessage = (message: Message) => {
-    if (message.senderId === selectedContactId || message.senderId === currentUser?.id) {
+  const handleNewMessage = async (message: Message) => {
+    // 如果是当前聊天窗口的消息，直接添加到消息列表
+    if (message.senderId === selectedContactId || message.receiverId === selectedContactId) {
       setMessages((prev) => [...prev, message]);
     }
-    // 更新联系人的最后消息
-    updateContactLastMessage(message.senderId, message.content);
+
+    // 更新联系人的最后消息（只有当消息不是当前用户发送的时候才更新）
+    if (message.senderId !== currentUser?.id) {
+      const shouldIncrement = message.senderId !== selectedContactId;
+      await updateContactLastMessage(message.senderId, message.content, shouldIncrement);
+    }
   };
 
   // 更新联系人最后消息
-  const updateContactLastMessage = (contactId: string, lastMessage: string) => {
+  const updateContactLastMessage = async (contactId: string, lastMessage: string, incrementUnread: boolean = false) => {
+    // 如果需要增加未读计数，从后端获取准确的未读数
+    let actualUnreadCount: number | undefined;
+    if (incrementUnread && currentUser) {
+      try {
+        const count = await apiService.getUnreadCountFromSender(currentUser.id, contactId);
+        // 只有当count > 0时才设置，否则为undefined
+        actualUnreadCount = count > 0 ? count : undefined;
+      } catch (error) {
+        console.error('Failed to get unread count:', error);
+      }
+    }
+
     setContacts((prev) => {
-      const updated = prev.map((c) =>
-        c.id === contactId
-          ? { ...c, lastMessage, lastMessageTime: new Date(), unreadCount: (c.unreadCount || 0) + 1 }
-          : c
-      );
+      const updated = prev.map((c) => {
+        if (c.id === contactId) {
+          const newContact = {
+            ...c,
+            lastMessage,
+            lastMessageTime: new Date(),
+          };
+
+          // 只在需要更新未读数时才设置unreadCount
+          if (incrementUnread) {
+            if (actualUnreadCount !== undefined) {
+              newContact.unreadCount = actualUnreadCount;
+            } else {
+              // API调用失败时回退到+1逻辑，但如果结果是0则不设置
+              const fallbackCount = (c.unreadCount || 0) + 1;
+              newContact.unreadCount = fallbackCount > 0 ? fallbackCount : undefined;
+            }
+          }
+
+          return newContact;
+        }
+        return c;
+      });
 
       // 重新排序，将有消息的联系人按时间排在前面
       return updated.sort((a: any, b: any) => {
@@ -226,13 +282,25 @@ function App() {
   };
 
   // 选择联系人
-  const handleSelectContact = (contactId: string) => {
+  const handleSelectContact = async (contactId: string) => {
     setSelectedContactId(contactId);
     loadMessages(contactId);
-    // 清除未读计数
+
+    // 立即清除前端显示的未读计数
     setContacts((prev) =>
-      prev.map((c) => (c.id === contactId ? { ...c, unreadCount: 0 } : c))
+      prev.map((c) => (c.id === contactId ? { ...c, unreadCount: undefined } : c))
     );
+
+    // 标记与该联系人的所有消息为已读
+    if (currentUser) {
+      try {
+        await apiService.markPrivateMessagesAsRead(contactId, currentUser.id);
+        // 标记成功后，重新加载联系人列表以确保状态同步
+        // 注意：这里不重新加载整个列表，只更新当前联系人的未读数为0
+      } catch (error) {
+        console.error('Failed to mark messages as read:', error);
+      }
+    }
   };
 
   // 发送消息
