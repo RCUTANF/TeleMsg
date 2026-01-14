@@ -198,7 +198,7 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, on
     return errors;
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     // Reset errors
     setPasswordErrors([]);
 
@@ -221,15 +221,19 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, on
       return;
     }
 
-    // Call password change handler
-    onChangePassword?.(oldPassword, newPassword);
+    try {
+      // Call password change handler
+      await onChangePassword?.(oldPassword, newPassword);
 
-    // Reset form and close dialog
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordDialogOpen(false);
-    toast.success('密码已成功更改');
+      // Reset form and close dialog
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordDialogOpen(false);
+    } catch (error) {
+      // Error is already handled in App.tsx, just don't close the dialog
+      console.error('密码修改失败:', error);
+    }
   };
 
   const handleSaveProxySettings = async () => {

@@ -135,6 +135,27 @@ class ApiService {
     this.wsBaseUrl = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080/api/ws';
   }
 
+  /**
+   * 将相对文件URL转换为绝对URL
+   */
+  getAbsoluteFileUrl(relativeUrl: string | undefined): string {
+    if (!relativeUrl) {
+      return 'https://via.placeholder.com/300x200';
+    }
+
+    // 如果已经是完整URL，直接返回
+    if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+      return relativeUrl;
+    }
+
+    // 如果是相对路径，转换为绝对路径
+    if (relativeUrl.startsWith('/api/')) {
+      return this.baseUrl.replace('/api', '') + relativeUrl;
+    }
+
+    return relativeUrl;
+  }
+
   // 核心请求方法封装
   private async request<T>(
       endpoint: string,
@@ -215,6 +236,13 @@ class ApiService {
     return this.request<User>('/users/profile', {
       method: 'PUT',
       body: JSON.stringify({ name, username }),
+    });
+  }
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<void> {
+    await this.request(`/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ oldPassword, newPassword }),
     });
   }
 

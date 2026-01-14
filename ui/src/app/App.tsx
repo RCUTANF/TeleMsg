@@ -1122,8 +1122,15 @@ function App() {
         currentUser={currentUser}
         onUpdateProfile={handleUpdateProfile}
         onUpdateProxySettings={handleUpdateProxySettings}
-        onChangePassword={(_oldPassword, _newPassword) => {
-          //TODO 这里可以添加与后端交互的逻辑
+        onChangePassword={async (oldPassword: string, newPassword: string) => {
+          try {
+            await apiService.changePassword(currentUser.id, oldPassword, newPassword);
+            toast.success('密码修改成功');
+          } catch (error: any) {
+            console.error('修改密码失败:', error);
+            toast.error('密码修改失败: ' + (error.message || '请重试'));
+            throw error; // Re-throw to let SettingsDialog handle it
+          }
         }}
         securityPolicy={securityPolicy}
       />
