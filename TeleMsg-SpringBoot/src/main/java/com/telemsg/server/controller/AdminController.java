@@ -1,5 +1,6 @@
 package com.telemsg.server.controller;
 
+import com.telemsg.server.annotation.RequirePermission;
 import com.telemsg.server.entity.User;
 import com.telemsg.server.entity.Department;
 import com.telemsg.server.entity.Permission;
@@ -64,6 +65,7 @@ public class AdminController {
     /**
      * 删除用户
      */
+    @RequirePermission(value = "user.delete", description = "删除用户")
     @DeleteMapping("/users/{userId}")
     public ResponseEntity<?> deleteUser(@RequestHeader("Authorization") String authHeader,
                                       @PathVariable String userId) {
@@ -83,6 +85,7 @@ public class AdminController {
     /**
      * 更新用户角色
      */
+    @RequirePermission(value = "user.edit", description = "编辑用户")
     @PutMapping("/users/{userId}/role")
     public ResponseEntity<?> updateUserRole(@RequestHeader("Authorization") String authHeader,
                                           @PathVariable String userId,

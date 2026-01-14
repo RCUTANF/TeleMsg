@@ -1,5 +1,6 @@
 package com.telemsg.server.controller;
 
+import com.telemsg.server.annotation.RequirePermission;
 import com.telemsg.server.entity.Group;
 import com.telemsg.server.entity.GroupMember;
 import com.telemsg.server.service.GroupService;
@@ -31,6 +32,7 @@ public class GroupController {
     /**
      * 创建群组
      */
+    @RequirePermission(value = "group.create", description = "创建群组")
     @PostMapping
     public ResponseEntity<?> createGroup(@RequestBody @Validated CreateGroupRequest request) {
         try {
@@ -128,6 +130,7 @@ public class GroupController {
     /**
      * 设置管理员
      */
+    @RequirePermission(value = "group.manage", description = "管理群组")
     @PutMapping("/{groupId}/members/{targetUserId}/admin")
     public ResponseEntity<?> setAdmin(@PathVariable String groupId,
                                     @PathVariable String targetUserId,
@@ -149,6 +152,7 @@ public class GroupController {
     /**
      * 转让群主
      */
+    @RequirePermission(value = "group.manage", description = "管理群组")
     @PutMapping("/{groupId}/owner")
     public ResponseEntity<?> transferOwnership(@PathVariable String groupId,
                                              @RequestBody @Validated TransferOwnerRequest request) {
