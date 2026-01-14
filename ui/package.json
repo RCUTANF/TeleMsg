@@ -14,6 +14,7 @@
     "electron-pack": "npm run build && electron-builder --dir",
     "build:electron": "npm run build && electron-builder",
     "start:pack": "npm run electron-pack && start dist-electron/win-unpacked/\"TeleMsg Desktop.exe\"",
+    "start": "start dist-electron/win-unpacked/\"TeleMsg Desktop.exe\"",
     "build:win": "npm run build && electron-builder --win --x64",
     "build:mac": "npm run build && electron-builder --mac --x64 --arm64",
     "build:linux": "npm run build && electron-builder --linux --x64",

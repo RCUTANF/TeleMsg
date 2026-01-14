@@ -56,6 +56,11 @@ task buildAndRunElectron(type: NpmTask, dependsOn: npmInstall) {
     group = 'run'
     args = ['run', 'start:pack']
 }
+task RunEletron(type: NpmTask, dependsOn: npmInstall) {
+    description = '运行已打包的 Electron 应用程序'
+    group = 'run'
+    args = ['run', 'start']
+}
 task cleanUI(type: Delete) {
     delete 'dist', 'dist-electron', 'node_modules/.cache'
 }
