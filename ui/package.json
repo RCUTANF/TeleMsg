@@ -145,6 +145,7 @@
           "arch": ["x64"]
         }
       ],
+        "icon": "public/icons/icon.ico",
       "requestedExecutionLevel": "asInvoker",
       "publisherName": "TeleMsg Team",
       "sign": false,
@@ -157,6 +158,7 @@
           "arch": ["x64", "arm64"]
         }
       ],
+      "icon": "public/icons",
       "category": "public.app-category.social-networking",
       "hardenedRuntime": false,
       "gatekeeperAssess": false
