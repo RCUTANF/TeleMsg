@@ -32,14 +32,14 @@ import {
   Trash2, 
   Edit,
   Search,
-  BarChart3,
+  // BarChart3, // 暂时不使用，统计分析功能已屏蔽
   ArrowLeft,
   Building2,
   Lock,
-  Settings,
+  // Settings, // 暂时不使用，数据安全功能已屏蔽
   UserCog,
   FolderTree,
-  Upload,
+  // Upload, // 暂时不使用，统计分析功能已屏蔽
   Plus
 } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
@@ -310,7 +310,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     { id: 'permissions', icon: UserCog, label: '权限矩阵' },
     { id: 'departments', icon: Building2, label: '组织架构', count: departments.length },
     { id: 'security', icon: Lock, label: '安全策略' },
-    { id: 'statistics', icon: BarChart3, label: '统计分析' },
+    // { id: 'statistics', icon: BarChart3, label: '统计分析' }, // 暂时屏蔽，待开发
   ];
 
   return (
@@ -745,7 +745,8 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                       </CardContent>
                     </Card>
 
-                    <Card>
+                    {/* 登录策略 - 暂时屏蔽，待开发 */}
+                    {/* <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Shield className="h-5 w-5 text-purple-600" />
@@ -811,9 +812,10 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                           />
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
 
-                    <Card>
+                    {/* 内容审核 - 暂时屏蔽，待开发 */}
+                    {/* <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Shield className="h-5 w-5 text-purple-600" />
@@ -861,9 +863,10 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                           />
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
 
-                    <Card>
+                    {/* 数据安全 - 暂时屏蔽，待开发 */}
+                    {/* <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Settings className="h-5 w-5 text-purple-600" />
@@ -918,7 +921,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                           </Select>
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
                   </div>
 
                   <div className="flex justify-end">
@@ -940,8 +943,8 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
               )}
 
 
-              {/* 统计分析 */}
-              {activeMenu === 'statistics' && (
+              {/* 统计分析 - 暂时屏蔽，待开发 */}
+              {/* {activeMenu === 'statistics' && (
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">统计分析</h2>
@@ -1064,7 +1067,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                     </Card>
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
           </ScrollArea>
         </main>
