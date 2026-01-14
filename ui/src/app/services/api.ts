@@ -125,11 +125,13 @@ interface AuthResponse {
 
 class ApiService {
   private baseUrl: string;
+  private wsBaseUrl: string;
   private ws: WebSocket | null = null;
   private wsMessageHandler: ((data: any) => void) | null = null;
 
   constructor() {
     this.baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080/api';
+    this.wsBaseUrl = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080/ws';
   }
 
   // 核心请求方法封装
@@ -522,12 +524,7 @@ class ApiService {
     }
 
     const token = localStorage.getItem('auth_token');
-    // 简单处理 http -> ws, https -> wss
-    //const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // 假设 API URL 是 http://localhost:8080/api，我们需要 ws://localhost:8080/ws
-    // 这里做个简单的替换逻辑，你需要根据实际部署情况调整
-    const wsBaseUrl = this.baseUrl.replace(/^http/, 'ws').replace(/\/api$/, '');
-    const wsUrl = `${wsBaseUrl}/ws?token=${token}&userId=${userId}`;
+    const wsUrl = `${this.wsBaseUrl}?token=${token}&userId=${userId}`;
 
     console.log('Connecting to WebSocket:', wsUrl);
 

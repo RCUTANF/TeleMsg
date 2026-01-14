@@ -16,4 +16,18 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Electron 开发配置
+  base: './',
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    rollupOptions: {
+      // 确保某些依赖不会被打包到 bundle 中
+      external: ['electron'],
+    },
+  },
 })

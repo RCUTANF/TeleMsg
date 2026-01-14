@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -27,10 +27,18 @@ import {
   Camera,
   Save,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { Separator } from './ui/separator';
 import { toast } from 'sonner';
+import {
+  setProxySettings,
+  getProxySettings,
+  validateProxyConnection,
+  isElectronEnvironment,
+  type ProxySettings
+} from '../services/proxyService';
 
 // Security policy type
 interface SecurityPolicy {
@@ -85,23 +93,13 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, on
   const [enableNotifications, setEnableNotifications] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // 初始化代理设置
-  const [proxyEnabled, setProxyEnabled] = useState(() => {
-    const saved = localStorage.getItem('proxySettings');
-    return saved ? JSON.parse(saved).enabled : false;
-  });
-  const [proxyHost, setProxyHost] = useState(() => {
-    const saved = localStorage.getItem('proxySettings');
-    return saved ? JSON.parse(saved).host : '';
-  });
-  const [proxyPort, setProxyPort] = useState(() => {
-    const saved = localStorage.getItem('proxySettings');
-    return saved ? JSON.parse(saved).port : '';
-  });
-  const [proxyType, setProxyType] = useState(() => {
-    const saved = localStorage.getItem('proxySettings');
-    return saved ? JSON.parse(saved).type : 'http';
-  });
+  // 代理设置状态
+  const [proxyEnabled, setProxyEnabled] = useState(false);
+  const [proxyHost, setProxyHost] = useState('');
+  const [proxyPort, setProxyPort] = useState('');
+  const [proxyType, setProxyType] = useState('http');
+  const [proxyLoading, setProxyLoading] = useState(false);
+  const [proxyValidating, setProxyValidating] = useState(false);
 
   // Password change state
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -109,6 +107,34 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, on
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+
+  // 加载代理设置 - 使用proxyService
+  useEffect(() => {
+    const loadProxySettings = async () => {
+      try {
+        setProxyLoading(true);
+        const result = await getProxySettings();
+
+        if (result.success && result.data) {
+          setProxyEnabled(result.data.enabled || false);
+          setProxyHost(result.data.host || '');
+          setProxyPort(result.data.port || '');
+          setProxyType(result.data.type || 'http');
+        } else if (result.message) {
+          console.warn('加载代理设置警告:', result.message);
+        }
+      } catch (error) {
+        console.error('加载代理设置失败:', error);
+        toast.error('加载代理设置失败');
+      } finally {
+        setProxyLoading(false);
+      }
+    };
+
+    if (open) {
+      loadProxySettings();
+    }
+  }, [open]);
 
   // Default security policy if not provided
   const defaultSecurityPolicy: SecurityPolicy = {
@@ -206,13 +232,64 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, on
     toast.success('密码已成功更改');
   };
 
-  const handleSaveProxySettings = () => {
-    onUpdateProxySettings?.({
-      enabled: proxyEnabled,
-      host: proxyHost,
-      port: proxyPort,
-      type: proxyType
-    });
+  const handleSaveProxySettings = async () => {
+    try {
+      setProxyValidating(true);
+
+      const settings: ProxySettings = {
+        enabled: proxyEnabled,
+        host: proxyHost,
+        port: proxyPort,
+        type: proxyType as 'http' | 'https' | 'socks5'
+      };
+
+      const result = await setProxySettings(settings);
+
+      if (result.success) {
+        toast.success(result.message || '代理设置已保存');
+        onUpdateProxySettings?.(settings);
+      } else {
+        toast.error(result.message || '保存代理设置失败');
+      }
+    } catch (error) {
+      console.error('保存代理设置失败:', error);
+      toast.error('保存代理设置出错');
+    } finally {
+      setProxyValidating(false);
+    }
+  };
+
+  // 验证代理连接
+  const handleValidateProxyConnection = async () => {
+    try {
+      setProxyValidating(true);
+
+      // 添加调试信息
+      console.log('开始验证代理连接...');
+      console.log('代理设置:', { host: proxyHost, port: proxyPort, type: proxyType });
+      console.log('Electron 环境检查:', isElectronEnvironment());
+      console.log('electronAPI 可用性:', !!(window as any).electronAPI);
+      console.log('proxy API 可用性:', !!(window as any).electronAPI?.proxy);
+
+      const result = await validateProxyConnection({
+        host: proxyHost,
+        port: proxyPort,
+        type: proxyType as 'http' | 'https' | 'socks5'
+      });
+
+      console.log('代理验证结果:', result);
+
+      if (result.success) {
+        toast.success(result.message || '代理连接成功');
+      } else {
+        toast.error(result.message || '代理连接失败');
+      }
+    } catch (error) {
+      console.error('验证代理连接失败:', error);
+      toast.error('验证代理连接出错');
+    } finally {
+      setProxyValidating(false);
+    }
   };
 
   return (
@@ -351,6 +428,7 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, on
                                 placeholder="127.0.0.1"
                                 value={proxyHost}
                                 onChange={(e) => setProxyHost(e.target.value)}
+                                disabled={proxyLoading}
                             />
                           </div>
                           <div className="space-y-2">
@@ -358,26 +436,62 @@ export function SettingsDialog({ open, onClose, currentUser, onUpdateProfile, on
                             <Input
                                 id="proxy-port"
                                 placeholder="8080"
+                                type="number"
+                                min="1"
+                                max="65535"
                                 value={proxyPort}
                                 onChange={(e) => setProxyPort(e.target.value)}
+                                disabled={proxyLoading}
                             />
                           </div>
                           <div className="space-y-2">
                             <Label>代理类型</Label>
-                            <Select value={proxyType} onValueChange={setProxyType}>
+                            <Select value={proxyType} onValueChange={setProxyType} disabled={proxyLoading}>
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="http">HTTP</SelectItem>
+                                <SelectItem value="https">HTTPS</SelectItem>
                                 <SelectItem value="socks5">SOCKS5</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
-                          <Button onClick={handleSaveProxySettings} className="w-full mt-4">
-                            <Save className="h-4 w-4 mr-2" />
-                            保存代理设置
-                          </Button>
+
+                          <div className="flex gap-2 pt-2">
+                            <Button
+                              onClick={handleValidateProxyConnection}
+                              variant="outline"
+                              className="flex-1"
+                              disabled={proxyValidating}
+                            >
+                              {proxyValidating ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  验证中...
+                                </>
+                              ) : (
+                                '测试连接'
+                              )}
+                            </Button>
+                            <Button
+                              onClick={handleSaveProxySettings}
+                              className="flex-1"
+                              disabled={proxyValidating || proxyLoading}
+                            >
+                              {proxyValidating ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  保存中...
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="h-4 w-4 mr-2" />
+                                  保存设置
+                                </>
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       </>
                   )}

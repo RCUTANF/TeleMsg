@@ -26,8 +26,43 @@ task devUI(type: NpmTask, dependsOn: npmInstall) {
     args = ['run', 'dev']
 }
 
+task devElectron(type: NpmTask, dependsOn: npmInstall) {
+    description = '启动 Electron 开发模式（包含 Vite 服务器和 Electron 应用）'
+    args = ['run', 'electron-dev']
+}
+
+task buildElectron(type: NpmTask, dependsOn: npmInstall) {
+    description = '构建 Electron 桌面应用程序（生成 exe 安装包）'
+    args = ['run', 'build:electron']
+}
+
+task buildElectronWin(type: NpmTask, dependsOn: npmInstall) {
+    description = '构建 Windows 平台 Electron 应用（生成 exe 和安装程序）'
+    args = ['run', 'build:win']
+}
+
+task distElectronWin(type: NpmTask, dependsOn: npmInstall) {
+    description = '打包 Windows 发行版（包含 NSIS 安装程序和便携版）'
+    args = ['run', 'dist:win']
+}
+
+task packElectron(type: NpmTask, dependsOn: npmInstall) {
+    description = '构建未打包的 Electron 应用以供测试'
+    args = ['run', 'electron-pack']
+}
+
+task buildAndRunElectron(type: NpmTask, dependsOn: npmInstall) {
+    description = '构建并运行 Electron 桌面应用程序'
+    group = 'run'
+    args = ['run', 'start:pack']
+}
+task RunEletron(type: NpmTask, dependsOn: npmInstall) {
+    description = '运行已打包的 Electron 应用程序'
+    group = 'run'
+    args = ['run', 'start']
+}
 task cleanUI(type: Delete) {
-    delete 'dist', 'node_modules/.cache'
+    delete 'dist', 'dist-electron', 'node_modules/.cache'
 }
 
 clean.dependsOn cleanUI
