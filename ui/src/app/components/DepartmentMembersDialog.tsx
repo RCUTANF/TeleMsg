@@ -14,6 +14,7 @@ import { Search, X, UserPlus } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { toast } from 'sonner';
+import { AddDepartmentMemberDialog } from './AddDepartmentMemberDialog';
 
 interface Member {
   id: string;
@@ -40,6 +41,7 @@ export function DepartmentMembersDialog({
   const [searchQuery, setSearchQuery] = useState('');
   const [members, setMembers] = useState<Member[]>([]);
   const [_isLoading, setIsLoading] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
 
   // 加载部门成员
   useEffect(() => {
@@ -102,7 +104,11 @@ export function DepartmentMembersDialog({
               </DialogTitle>
               <DialogDescription>共 {members.length} 名成员</DialogDescription>
             </div>
-            <Button size="sm" className="bg-purple-600 hover:bg-purple-700 gap-2">
+            <Button
+              size="sm"
+              className="bg-purple-600 hover:bg-purple-700 gap-2"
+              onClick={() => setAddMemberOpen(true)}
+            >
               <UserPlus className="h-4 w-4" />
               添加成员
             </Button>
@@ -175,6 +181,15 @@ export function DepartmentMembersDialog({
             </div>
           </ScrollArea>
         </div>
+
+        <AddDepartmentMemberDialog
+          open={addMemberOpen}
+          onClose={() => setAddMemberOpen(false)}
+          departmentName={departmentName}
+          departmentId={departmentId}
+          existingMemberIds={members.map(m => m.id)}
+          onMemberAdded={() => loadMembers()}
+        />
       </DialogContent>
     </Dialog>
   );

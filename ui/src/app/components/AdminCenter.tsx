@@ -23,7 +23,6 @@ import {
   SelectValue,
 } from './ui/select';
 import { Switch } from './ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
 import {
@@ -37,15 +36,9 @@ import {
   ArrowLeft,
   Building2,
   Lock,
-  FileCheck,
-  History,
   Settings,
   UserCog,
   FolderTree,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Download,
   Upload,
   Plus
 } from 'lucide-react';
@@ -54,6 +47,7 @@ import { RoleMembersDialog } from './RoleMembersDialog';
 import { RolePermissionsDialog } from './RolePermissionsDialog';
 import { DepartmentMembersDialog } from './DepartmentMembersDialog';
 import { DepartmentEditDialog } from './DepartmentEditDialog';
+import { DepartmentCreateDialog } from './DepartmentCreateDialog';
 
 interface AdminCenterProps {
   onClose: () => void;
@@ -98,6 +92,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
   const [deptMembersOpen, setDeptMembersOpen] = useState(false);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptEditOpen, setDeptEditOpen] = useState(false);
+  const [deptCreateOpen, setDeptCreateOpen] = useState(false);
 
   // 安全策略状态
   const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy>({
@@ -212,25 +207,10 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     '系统管理': [
       { id: 'system.settings', name: '系统设置', description: '修改系统配置' },
       { id: 'report.view', name: '查看报表', description: '查看统计报表' },
-      { id: 'audit.view', name: '审计日志', description: '查看操作日志' },
       { id: 'role.manage', name: '角色管理', description: '管理角色权限' },
     ],
   };
 
-  // 待审批项
-  const [pendingApprovals] = useState([
-    { id: '1', type: '用户注册', user: '新用户001', department: '技术部', time: '5分钟前', status: 'pending' },
-    { id: '2', type: '文件分享', user: '李四', department: '市场部', time: '1小时前', status: 'pending' },
-    { id: '3', type: '权限申请', user: '王五', department: '技术部', time: '2小时前', status: 'pending' },
-  ]);
-
-  // 审计日志
-  const [auditLogs] = useState([
-    { id: '1', user: '张三', action: '修改用户权限', target: '李四', time: '2026-01-11 14:30:00', result: 'success' },
-    { id: '2', user: '李四', action: '创建群组', target: '产品讨论组', time: '2026-01-11 13:15:00', result: 'success' },
-    { id: '3', user: '王五', action: '导出数据', target: '聊天记录', time: '2026-01-11 11:20:00', result: 'failed' },
-    { id: '4', user: '张三', action: '删除用户', target: '赵六', time: '2026-01-11 10:00:00', result: 'success' },
-  ]);
 
   const statusColors = {
     active: 'bg-green-100 text-green-700 border-green-200',
@@ -254,9 +234,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     { id: 'users', icon: Users, label: '用户管理', count: users.length },
     { id: 'roles', icon: UserCog, label: '角色权限', count: roles.length },
     { id: 'departments', icon: Building2, label: '组织架构', count: departments.length },
-    { id: 'approvals', icon: FileCheck, label: '审批管理', count: pendingApprovals.length },
     { id: 'security', icon: Lock, label: '安全策略' },
-    { id: 'audit', icon: History, label: '审计日志' },
     { id: 'statistics', icon: BarChart3, label: '统计分析' },
   ];
 
@@ -576,7 +554,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                       <h2 className="text-2xl font-bold text-gray-900">组织架构</h2>
                       <p className="text-gray-500 mt-1">管理企业的部门和团队结构</p>
                     </div>
-                    <Button className="gap-2 bg-purple-600 hover:bg-purple-700">
+                    <Button className="gap-2 bg-purple-600 hover:bg-purple-700" onClick={() => setDeptCreateOpen(true)}>
                       <Plus className="h-4 w-4" />
                       创建部门
                     </Button>
@@ -631,69 +609,6 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                 </div>
               )}
 
-
-
-              {/* 审批管理 */}
-              {activeMenu === 'approvals' && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">审批管理</h2>
-                    <p className="text-gray-500 mt-1">处理用户申请和敏感操作审批</p>
-                  </div>
-
-                  <Tabs defaultValue="pending">
-                    <TabsList>
-                      <TabsTrigger value="pending" className="gap-2">
-                        待审批
-                        <Badge variant="secondary">{pendingApprovals.length}</Badge>
-                      </TabsTrigger>
-                      <TabsTrigger value="approved">已通过</TabsTrigger>
-                      <TabsTrigger value="rejected">已拒绝</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="pending" className="space-y-4 mt-6">
-                      {pendingApprovals.map((approval) => (
-                        <Card key={approval.id}>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4 flex-1">
-                                <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
-                                  <AlertCircle className="h-6 w-6 text-orange-600" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-3">
-                                    <h4 className="font-semibold text-gray-900">{approval.type}</h4>
-                                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                      待审批
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                                    <span>申请人：{approval.user}</span>
-                                    <span>•</span>
-                                    <span>部门：{approval.department}</span>
-                                    <span>•</span>
-                                    <span>{approval.time}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button variant="outline" className="gap-2">
-                                  <XCircle className="h-4 w-4" />
-                                  拒绝
-                                </Button>
-                                <Button className="gap-2 bg-green-600 hover:bg-green-700">
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  通过
-                                </Button>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              )}
 
               {/* 安全策略 */}
               {activeMenu === 'security' && (
@@ -855,7 +770,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                          <FileCheck className="h-5 w-5 text-purple-600" />
+                          <Shield className="h-5 w-5 text-purple-600" />
                           内容审核
                         </CardTitle>
                       </CardHeader>
@@ -978,86 +893,6 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                 </div>
               )}
 
-              {/* 审计日志 */}
-              {activeMenu === 'audit' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">审计日志</h2>
-                      <p className="text-gray-500 mt-1">查看系统操作记录和安全事件</p>
-                    </div>
-                    <Button variant="outline" className="gap-2">
-                      <Download className="h-4 w-4" />
-                      导出日志
-                    </Button>
-                  </div>
-
-                  <Card>
-                    <CardHeader>
-                      <div className="flex gap-3">
-                        <Input placeholder="搜索日志..." className="flex-1" />
-                        <Select defaultValue="all">
-                          <SelectTrigger className="w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">全部操作</SelectItem>
-                            <SelectItem value="user">用户管理</SelectItem>
-                            <SelectItem value="permission">权限变更</SelectItem>
-                            <SelectItem value="data">数据操作</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select defaultValue="today">
-                          <SelectTrigger className="w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="today">今天</SelectItem>
-                            <SelectItem value="week">最近7天</SelectItem>
-                            <SelectItem value="month">最近30天</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>操作人</TableHead>
-                            <TableHead>操作类型</TableHead>
-                            <TableHead>操作对象</TableHead>
-                            <TableHead>操作时间</TableHead>
-                            <TableHead>结果</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {auditLogs.map((log) => (
-                            <TableRow key={log.id}>
-                              <TableCell className="font-medium">{log.user}</TableCell>
-                              <TableCell>{log.action}</TableCell>
-                              <TableCell className="text-gray-600">{log.target}</TableCell>
-                              <TableCell className="text-gray-500 text-sm">{log.time}</TableCell>
-                              <TableCell>
-                                {log.result === 'success' ? (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    成功
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    失败
-                                  </Badge>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
 
               {/* 统计分析 */}
               {activeMenu === 'statistics' && (
@@ -1231,6 +1066,12 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
           />
         </>
       )}
+
+      <DepartmentCreateDialog
+        open={deptCreateOpen}
+        onClose={() => setDeptCreateOpen(false)}
+        onSaved={() => loadData()}
+      />
     </div>
   );
 }

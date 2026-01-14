@@ -612,10 +612,10 @@ class ApiService {
     return this.request('/admin/departments');
   }
 
-  async createDepartment(name: string, manager: string, parent?: string): Promise<Department> {
+  async createDepartment(data: { name: string; manager: string; parent?: string; description?: string }): Promise<Department> {
     return this.request('/admin/departments', {
       method: 'POST',
-      body: JSON.stringify({ name, manager, parent }),
+      body: JSON.stringify(data),
     });
   }
 
@@ -644,6 +644,13 @@ class ApiService {
   async removeDepartmentMember(departmentId: string, userId: string): Promise<void> {
     await this.request(`/admin/departments/${departmentId}/members/${userId}`, {
       method: 'DELETE',
+    });
+  }
+
+  async addDepartmentMembers(departmentId: string, userIds: string[]): Promise<void> {
+    await this.request(`/admin/departments/${departmentId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userIds }),
     });
   }
 
