@@ -48,6 +48,7 @@ import { RolePermissionsDialog } from './RolePermissionsDialog';
 import { DepartmentMembersDialog } from './DepartmentMembersDialog';
 import { DepartmentEditDialog } from './DepartmentEditDialog';
 import { DepartmentCreateDialog } from './DepartmentCreateDialog';
+import { UserManagementDialog } from './UserManagementDialog';
 
 interface AdminCenterProps {
   onClose: () => void;
@@ -93,6 +94,8 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptEditOpen, setDeptEditOpen] = useState(false);
   const [deptCreateOpen, setDeptCreateOpen] = useState(false);
+  const [userManagementOpen, setUserManagementOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   // 安全策略状态
   const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy>({
@@ -168,6 +171,43 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
       toast.error('加载数据失败');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 用户管理操作
+  const handleAddUser = () => {
+    setSelectedUser(null);
+    setUserManagementOpen(true);
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setUserManagementOpen(true);
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`确定要删除用户 "${userName}" 吗？此操作不可恢复。`)) {
+      return;
+    }
+
+    try {
+      await apiService.deleteUser(userId);
+      toast.success('用户删除成功');
+      loadData();
+    } catch (error: any) {
+      console.error('删除用户失败:', error);
+      toast.error(error.message || '删除用户失败');
+    }
+  };
+
+  const handleUpdateUserStatus = async (userId: string, status: 'active' | 'inactive' | 'suspended') => {
+    try {
+      await apiService.updateUserStatus(userId, status);
+      toast.success('用户状态更新成功');
+      loadData();
+    } catch (error: any) {
+      console.error('更新用户状态失败:', error);
+      toast.error(error.message || '更新用户状态失败');
     }
   };
 
@@ -313,7 +353,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                       <h2 className="text-2xl font-bold text-gray-900">用户管理</h2>
                       <p className="text-gray-500 mt-1">管理系统中的所有用户账号</p>
                     </div>
-                    <Button className="gap-2 bg-purple-600 hover:bg-purple-700">
+                    <Button className="gap-2 bg-purple-600 hover:bg-purple-700" onClick={handleAddUser}>
                       <UserPlus className="h-4 w-4" />
                       添加用户
                     </Button>
@@ -400,10 +440,10 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                               <TableCell className="text-gray-500 text-sm">{user.createdAt || '-'}</TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-1">
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user)}>
                                     <Edit className="h-4 w-4" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteUser(user.id, user.name)}>
                                     <Trash2 className="h-4 w-4 text-red-500" />
                                   </Button>
                                 </div>
@@ -1070,6 +1110,14 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
       <DepartmentCreateDialog
         open={deptCreateOpen}
         onClose={() => setDeptCreateOpen(false)}
+        onSaved={() => loadData()}
+      />
+
+      <UserManagementDialog
+        open={userManagementOpen}
+        onClose={() => setUserManagementOpen(false)}
+        user={selectedUser}
+        departments={departments}
         onSaved={() => loadData()}
       />
     </div>

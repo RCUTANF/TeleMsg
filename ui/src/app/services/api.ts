@@ -585,6 +585,35 @@ class ApiService {
     return this.request<User[]>('/admin/users');
   }
 
+  async createUser(data: {
+    username: string;
+    password: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+    departmentId?: string;
+  }): Promise<User> {
+    return this.request<User>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUser(userId: string, data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    avatar?: string;
+    role?: string;
+    isAdmin?: boolean;
+  }): Promise<User> {
+    return this.request<User>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async deleteUser(userId: string): Promise<void> {
     await this.request(`/admin/users/${userId}`, { method: 'DELETE' });
   }
