@@ -25,6 +25,10 @@ export class MediasoupService {
   private config: MediasoupConfig;
   private roomId: string | null = null;
 
+  // 🔥 新增：消费队列，防止并发调用导致 SDP 冲突
+  private consumeQueue: Promise<void> = Promise.resolve();
+  private isConsuming: Set<string> = new Set(); // 跟踪正在消费的 producer
+
   // 回调函数
   private onRemoteStreamCallback: ((userId: string, stream: MediaStream) => void) | null = null;
   private onRemoteStreamRemovedCallback: ((userId: string) => void) | null = null;
@@ -162,71 +166,107 @@ export class MediasoupService {
    * 开始接收远程媒体流
    */
   async startConsuming(producerId: string): Promise<void> {
+    // 🔥 关键修复：检查是否已经在消费这个 producer
+    if (this.isConsuming.has(producerId)) {
+      console.log(`⏭️ Already consuming producer ${producerId}, skipping...`);
+      return;
+    }
+
+    // 🔥 关键修复：串行化 consume 操作，防止并发导致 SDP 冲突
+    this.consumeQueue = this.consumeQueue.then(async () => {
+      try {
+        await this.doConsume(producerId);
+      } catch (error) {
+        console.error(`❌ Failed to consume producer ${producerId}:`, error);
+        throw error;
+      }
+    });
+
+    return this.consumeQueue;
+  }
+
+  /**
+   * 实际执行消费操作（内部方法）
+   */
+  private async doConsume(producerId: string): Promise<void> {
     if (!this.device || !this.socket || !this.roomId) {
       throw new Error('Not connected to room');
     }
 
+    // 标记为正在消费
+    this.isConsuming.add(producerId);
+
     console.log(`🎯 Starting to consume producer: ${producerId}`);
 
-    // 创建接收传输通道
-    if (!this.recvTransport) {
-      console.log('🔧 Creating receive transport...');
-      const transportInfo = await this.socketRequest('create-transport', {
-        roomId: this.roomId,
-        direction: 'recv',
+    try {
+      // 创建接收传输通道
+      if (!this.recvTransport) {
+        console.log('🔧 Creating receive transport...');
+        const transportInfo = await this.socketRequest('create-transport', {
+          roomId: this.roomId,
+          direction: 'recv',
+        });
+
+        this.recvTransport = this.device.createRecvTransport(transportInfo);
+        this.setupRecvTransport();
+        console.log('✅ Receive transport created');
+      }
+
+      console.log('📡 Requesting to consume producer...');
+      // 消费媒体流
+      const consumerInfo = await this.socketRequest('consume', {
+        transportId: this.recvTransport.id,
+        producerId,
+        rtpCapabilities: this.device.rtpCapabilities,
       });
 
-      this.recvTransport = this.device.createRecvTransport(transportInfo);
-      this.setupRecvTransport();
-      console.log('✅ Receive transport created');
+      console.log('🎬 Creating consumer with info:', consumerInfo);
+
+      // 🔥 关键修复：等待一小段时间，让 transport 准备好
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const consumer = await this.recvTransport.consume(consumerInfo);
+      this.consumers.set(consumer.id, consumer);
+
+      console.log('▶️ Resuming consumer...');
+      // 恢复消费者
+      await this.socketRequest('resume-consumer', { consumerId: consumer.id });
+
+      // 使用固定的远程用户ID
+      const remoteUserId = 'remote-user';
+      console.log(`👤 Remote user ID: ${remoteUserId}, Kind: ${consumer.kind}`);
+
+      let remoteStream = this.remoteStreams.get(remoteUserId);
+      if (!remoteStream) {
+        console.log(`🆕 Creating new remote stream for user: ${remoteUserId}`);
+        remoteStream = new MediaStream();
+        this.remoteStreams.set(remoteUserId, remoteStream);
+      } else {
+        console.log(`📦 Using existing remote stream (current tracks: ${remoteStream.getTracks().length})`);
+      }
+
+      // 添加track到流
+      console.log(`➕ Adding ${consumer.kind} track to remote stream`);
+      remoteStream.addTrack(consumer.track);
+
+      console.log(`📊 Remote stream now has ${remoteStream.getTracks().length} tracks:`,
+        remoteStream.getTracks().map(t => `${t.kind} (${t.id})`));
+
+      // 触发回调
+      if (this.onRemoteStreamCallback) {
+        console.log(`📢 Calling remote stream callback for user: ${remoteUserId}`);
+        this.onRemoteStreamCallback(remoteUserId, remoteStream);
+      } else {
+        console.warn('⚠️ No remote stream callback registered!');
+      }
+
+      console.log(`✅ Consumer created for producer: ${producerId} (${consumer.kind})`);
+    } catch (error) {
+      console.error(`❌ Error in doConsume for producer ${producerId}:`, error);
+      // 从消费集合中移除，允许重试
+      this.isConsuming.delete(producerId);
+      throw error;
     }
-
-    console.log('📡 Requesting to consume producer...');
-    // 消费媒体流
-    const consumerInfo = await this.socketRequest('consume', {
-      transportId: this.recvTransport.id,
-      producerId,
-      rtpCapabilities: this.device.rtpCapabilities,
-    });
-
-    console.log('🎬 Creating consumer with info:', consumerInfo);
-    const consumer = await this.recvTransport.consume(consumerInfo);
-    this.consumers.set(consumer.id, consumer);
-
-    console.log('▶️ Resuming consumer...');
-    // 恢复消费者
-    await this.socketRequest('resume-consumer', { consumerId: consumer.id });
-
-    // 🔥 关键修复：使用固定的远程用户ID（基于房间的另一方）
-    // 不要为每个 producer 创建单独的流，而是将所有轨道添加到同一个流
-    const remoteUserId = 'remote-user'; // 简化处理，一个房间只有两个人
-    console.log(`👤 Remote user ID: ${remoteUserId}, Kind: ${consumer.kind}`);
-
-    let remoteStream = this.remoteStreams.get(remoteUserId);
-    if (!remoteStream) {
-      console.log(`🆕 Creating new remote stream for user: ${remoteUserId}`);
-      remoteStream = new MediaStream();
-      this.remoteStreams.set(remoteUserId, remoteStream);
-    } else {
-      console.log(`📦 Using existing remote stream (current tracks: ${remoteStream.getTracks().length})`);
-    }
-
-    // 添加track到流
-    console.log(`➕ Adding ${consumer.kind} track to remote stream`);
-    remoteStream.addTrack(consumer.track);
-
-    console.log(`📊 Remote stream now has ${remoteStream.getTracks().length} tracks:`,
-      remoteStream.getTracks().map(t => `${t.kind} (${t.id})`));
-
-    // 🔥 关键：每次添加轨道后都触发回调，让UI更新
-    if (this.onRemoteStreamCallback) {
-      console.log(`📢 Calling remote stream callback for user: ${remoteUserId}`);
-      this.onRemoteStreamCallback(remoteUserId, remoteStream);
-    } else {
-      console.warn('⚠️ No remote stream callback registered!');
-    }
-
-    console.log(`✅ Consumer created for producer: ${producerId} (${consumer.kind})`);
   }
 
   /**
@@ -403,6 +443,10 @@ export class MediasoupService {
     // 关闭消费者
     this.consumers.forEach(consumer => consumer.close());
     this.consumers.clear();
+
+    // 🔥 清理消费队列状态
+    this.isConsuming.clear();
+    this.consumeQueue = Promise.resolve();
 
     // 关闭传输通道
     if (this.sendTransport) {
