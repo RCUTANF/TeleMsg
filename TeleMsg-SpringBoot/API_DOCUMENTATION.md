@@ -1,11 +1,12 @@
 # TeleMsg API 接口文档
 
-## 概述
+## 📋 文档说明
 
-TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、消息传输、群组管理、文件上传、视频通话等功能。
+本文档详细记录了 TeleMsg SpringBoot 服务端的所有 REST API 接口。
 
-**服务器地址**: `http://localhost:8080`
-**API 版本**: v1.0
+**最后更新**: 2025年1月14日  
+**文档版本**: 2.0  
+**服务器地址**: `http://localhost:8080`  
 **认证方式**: Bearer Token (JWT)
 
 ## 通用响应格式
