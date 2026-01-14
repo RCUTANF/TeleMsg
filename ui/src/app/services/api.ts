@@ -604,34 +604,12 @@ class ApiService {
     totalDepartments?: number;
     totalRoles?: number;
   }> {
-    try {
-      return await this.request('/admin/stats');
-    } catch (error) {
-      console.warn('后端不可用，使用模拟数据:', error);
-      return {
-        totalUsers: 247,
-        onlineUsers: 189,
-        totalMessages: 15420,
-        storageUsed: 45.6,
-        totalDepartments: 12,
-        totalRoles: 5
-      };
-    }
+    return await this.request('/admin/stats');
   }
 
   // 部门管理
   async getDepartments(): Promise<Department[]> {
-    try {
-      return await this.request('/admin/departments');
-    } catch (error) {
-      console.warn('后端不可用，使用模拟数据:', error);
-      return [
-        { id: '1', name: '技术部', manager: '张三', memberCount: 45 },
-        { id: '2', name: '市场部', manager: '李四', memberCount: 32, parent: '1' },
-        { id: '3', name: '人力资源部', manager: '王五', memberCount: 18 },
-        { id: '4', name: '财务部', manager: '赵六', memberCount: 12 }
-      ];
-    }
+    return this.request('/admin/departments');
   }
 
   async createDepartment(name: string, manager: string, parent?: string): Promise<Department> {
@@ -653,31 +631,7 @@ class ApiService {
   }
 
   async getDepartmentMembers(departmentId: string): Promise<User[]> {
-    try {
-      return await this.request(`/admin/departments/${departmentId}/members`);
-    } catch (error) {
-      console.warn('后端不可用，使用模拟数据:', error);
-      return [
-        {
-          id: '1',
-          name: '张三',
-          username: 'zhangsan',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangsan',
-          role: '系统管理员',
-          department: '技术部',
-          status: 'active'
-        },
-        {
-          id: '3',
-          name: '王五',
-          username: 'wangwu',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wangwu',
-          role: '普通员工',
-          department: '技术部',
-          status: 'active'
-        }
-      ];
-    }
+    return await this.request(`/admin/departments/${departmentId}/members`);
   }
 
   async addDepartmentMember(departmentId: string, userId: string): Promise<void> {
@@ -695,34 +649,7 @@ class ApiService {
 
   // 角色管理
   async getRoles(): Promise<Role[]> {
-    try {
-      return await this.request('/admin/roles');
-    } catch (error) {
-      console.warn('后端不可用，使用模拟数据:', error);
-      return [
-        {
-          id: '1',
-          name: '系统管理员',
-          description: '全局审批 + 最终决策权',
-          userCount: 3,
-          permissions: ['全系统审批', '最终决策权', '人员管理', '数据管理']
-        },
-        {
-          id: '2',
-          name: '部门主管',
-          description: '本部门审批 + 跨部门申请发起',
-          userCount: 8,
-          permissions: ['本部门审批', '跨部门申请', '群聊创建']
-        },
-        {
-          id: '3',
-          name: '普通员工',
-          description: '基础聊天功能',
-          userCount: 45,
-          permissions: ['发起申请', '查看个人数据']
-        }
-      ];
-    }
+    return await this.request('/admin/roles');
   }
 
   async createRole(name: string, description: string, permissions: string[]): Promise<Role> {
@@ -744,35 +671,7 @@ class ApiService {
   }
 
   async getRoleMembers(roleId: string): Promise<User[]> {
-    try {
-      return await this.request(`/admin/roles/${roleId}/members`);
-    } catch (error) {
-      console.warn('后端不可用，使用模拟数据:', error);
-      // 根据角色 ID 返回不同的模拟数据
-      if (roleId === '1') {
-        return [
-          {
-            id: '1',
-            name: '张三',
-            username: 'zhangsan',
-            avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangsan',
-            role: '系统管理员',
-            department: '技术部',
-            status: 'active'
-          }
-        ];
-      }
-      return [
-        {
-          id: '2',
-          name: '李四',
-          username: 'lisi',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lisi',
-          department: '市场部',
-          status: 'active'
-        }
-      ];
-    }
+    return await this.request(`/admin/roles/${roleId}/members`);
   }
 
   async assignUserRole(userId: string, roleId: string): Promise<void> {
@@ -940,3 +839,4 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+

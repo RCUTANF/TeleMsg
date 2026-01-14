@@ -293,6 +293,15 @@ public class UserService {
     }
 
     /**
+     * 根据角色获取用户列表
+     */
+    public List<User> getUsersByRole(User.UserRole role) {
+        return userRepository.findByDeletedFalse().stream()
+                .filter(u -> u.getRole() == role)
+                .toList();
+    }
+
+    /**
      * 生成唯一的用户ID
      */
     private String generateUserId() {

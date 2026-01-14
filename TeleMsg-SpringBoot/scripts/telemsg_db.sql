@@ -11,7 +11,7 @@
  Target Server Version : 80404 (8.4.4)
  File Encoding         : 65001
 
- Date: 13/01/2026 18:43:28
+ Date: 14/01/2026 11:46:24
 */
 
 SET NAMES utf8mb4;
@@ -122,7 +122,7 @@ CREATE TABLE `tm_messages`  (
   INDEX `idx_receiver`(`receiver_id` ASC) USING BTREE,
   INDEX `idx_group`(`group_id` ASC) USING BTREE,
   INDEX `idx_file_id`(`file_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 16 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for tm_users
@@ -143,6 +143,9 @@ CREATE TABLE `tm_users`  (
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `last_login_time` datetime NULL DEFAULT NULL,
   `last_login_ip` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
+  `is_admin` tinyint(1) NULL DEFAULT 0,
+  `role` enum('DIRECTOR','MANAGER','EMPLOYEE') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `department_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `user_id`(`user_id` ASC) USING BTREE,
   UNIQUE INDEX `username`(`username` ASC) USING BTREE,
@@ -150,5 +153,27 @@ CREATE TABLE `tm_users`  (
   INDEX `idx_username`(`username` ASC) USING BTREE,
   INDEX `idx_status`(`status` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 10 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for tm_departments
+-- ----------------------------
+DROP TABLE IF EXISTS `tm_departments`;
+CREATE TABLE `tm_departments`  (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `department_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
+  `manager_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
+  `parent_department_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
+  `deleted` tinyint(1) NOT NULL DEFAULT 0,
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `department_id`(`department_id` ASC) USING BTREE,
+  INDEX `idx_department_id`(`department_id` ASC) USING BTREE,
+  INDEX `idx_name`(`name` ASC) USING BTREE,
+  INDEX `idx_manager_id`(`manager_id` ASC) USING BTREE,
+  INDEX `idx_parent_department_id`(`parent_department_id` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 SET FOREIGN_KEY_CHECKS = 1;

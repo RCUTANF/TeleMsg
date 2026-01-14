@@ -87,4 +87,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * 统计指定状态且未删除的用户数量
      */
     long countByStatusAndDeletedFalse(User.UserStatus status);
+
+    /**
+     * 根据部门ID查找用户
+     */
+    List<User> findByDepartmentIdAndDeletedFalse(String departmentId);
+
+    /**
+     * 统计部门成员数量
+     */
+    long countByDepartmentIdAndDeletedFalse(String departmentId);
 }

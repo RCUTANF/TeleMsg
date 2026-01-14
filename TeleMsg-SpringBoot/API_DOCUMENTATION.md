@@ -1,4 +1,3 @@
-
 # TeleMsg API 接口文档
 
 ## 概述
@@ -484,7 +483,7 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 
 ### 获取群成员列表
 - **URL**: `GET /groups/{groupId}/members`
-- **描述**: 获取群组成员列表
+- **描述**: 获取群���成员列表
 
 ### 获取用户群组列表
 - **URL**: `GET /groups/user/{userId}`
@@ -643,11 +642,52 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
 - **URL**: `GET /admin/users`
 - **描述**: 获取系统中所有用户（管理员权限）
 - **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+[
+  {
+    "id": "用户ID",
+    "name": "用户名",
+    "username": "用户名",
+    "avatar": "头像URL",
+    "role": "director",
+    "isAdmin": true
+  }
+]
+```
 
 ### 删除用户（管理员）
 - **URL**: `DELETE /admin/users/{userId}`
 - **描述**: 删除指定用户（管理员权限）
 - **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+{
+  "message": "用户删除成功"
+}
+```
+
+### 更新用户角色
+- **URL**: `PUT /admin/users/{userId}/role`
+- **描述**: 更新用户角色和权限（管理员权限）
+- **请求头**: `Authorization: Bearer <token>`
+- **请求体**:
+```json
+{
+  "role": "manager"
+}
+```
+- **响应**:
+```json
+{
+  "id": "用户ID",
+  "name": "用户名",
+  "username": "用户名",
+  "avatar": "头像URL",
+  "role": "manager",
+  "isAdmin": false
+}
+```
 
 ### 获取系统统计
 - **URL**: `GET /admin/stats`
@@ -661,6 +701,87 @@ TeleMsg 是一个即时通讯应用的后端 API 系统，提供用户管理、�
   "totalMessages": 5000,
   "storageUsed": 0
 }
+```
+
+### 获取部门列表
+- **URL**: `GET /admin/departments`
+- **描述**: 获取所有部门信息（管理员权限）
+- **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+[
+  {
+    "id": "1",
+    "name": "技术部",
+    "manager": "张三",
+    "memberCount": 45,
+    "parent": null
+  }
+]
+```
+
+### 创建部门
+- **URL**: `POST /admin/departments`
+- **描述**: 创建新部门（管理员权限）
+- **请求头**: `Authorization: Bearer <token>`
+- **请求体**:
+```json
+{
+  "name": "新部门",
+  "manager": "经理名",
+  "parent": "上级部门ID"
+}
+```
+
+### 获取部门成员
+- **URL**: `GET /admin/departments/{departmentId}/members`
+- **描述**: 获取部门成员列表（管理员权限）
+- **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+[
+  {
+    "id": "用户ID",
+    "name": "用户名",
+    "username": "用户名",
+    "role": "employee",
+    "isAdmin": false
+  }
+]
+```
+
+### 获取角色列表
+- **URL**: `GET /admin/roles`
+- **描述**: 获取所有角色信息（管理员权限）
+- **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+[
+  {
+    "id": "1",
+    "name": "系统管理员",
+    "description": "全局审批 + 最终决策权",
+    "userCount": 3,
+    "permissions": ["全系统审批", "最终决策权", "人员管理", "数据管理"]
+  }
+]
+```
+
+### 获取角色成员
+- **URL**: `GET /admin/roles/{roleId}/members`
+- **描述**: 获取角色成员列表（管理员权限）
+- **请求头**: `Authorization: Bearer <token>`
+- **响应**:
+```json
+[
+  {
+    "id": "用户ID",
+    "name": "用户名",
+    "username": "用户名",
+    "role": "director",
+    "isAdmin": true
+  }
+]
 ```
 
 ## 错误码说明
