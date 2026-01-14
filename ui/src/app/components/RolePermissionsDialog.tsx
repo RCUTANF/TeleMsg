@@ -40,55 +40,18 @@ export interface RolePermissionsDialogProps {
   onSave?: (permissions: PermissionCategory[]) => void;
 }
 
-// 定义所有可用的权限项（从AdminCenter中合并）
+// 定义所有可用的权限项（简化后只保留核心功能）
 const ALL_PERMISSIONS: PermissionCategory[] = [
   {
-    category: '审批功能',
+    category: '文件管理',
     permissions: [
-      { id: 'approve.all', name: '审批全系统所有操作申请', description: '跨部门审批、全局操作审批、最终审批决策权', checked: false },
-      { id: 'approve.dept', name: '审批本部门操作申请', description: '如设置批规则、导出本部门数据等', checked: false },
-      { id: 'approve.cross', name: '发起跨部门审批申请', description: '跨部门群聊创建、数据调用等', checked: false },
-      { id: 'approve.sensitive', name: '发起敏感操作申请', description: '大文件传输、跨部门聊天、本部门群聊创建等', checked: false },
-      { id: 'approve.view', name: '查看个人审批申请进度', description: '查看个人申请状态', checked: false },
-    ],
-  },
-  {
-    category: '人员权限管理',
-    permissions: [
-      { id: 'user.manage.all', name: '添加/解冻全系统成员并赋予任意角色', description: '分配、解冻任意角色权限', checked: false },
-      { id: 'user.manage.dept', name: '调整本部门工作人员权限', description: '临时为本部门成员指定工作号', checked: false },
-    ],
-  },
-  {
-    category: '数据管理',
-    permissions: [
-      { id: 'data.export.all', name: '查看全系统数据、导出全系统数据', description: '需自身审批宣读限', checked: false },
-      { id: 'data.export.dept', name: '查看本部门数据、导出本部门数据', description: '需向系统管理员最终审批', checked: false },
-      { id: 'data.clean', name: '清理违规数据', description: '删除违规内容', checked: false },
-      { id: 'data.apply', name: '查看本人数据、申请导出本人/本部门数据', description: '导出申请需通过审批，记录未经批准无法执行导出操作', checked: false },
-    ],
-  },
-  {
-    category: '群聊管理',
-    permissions: [
-      { id: 'group.manage.all', name: '创建/管理任意群聊', description: '审批跨部门群聊创建申请', checked: false },
-      { id: 'group.manage.dept', name: '创建/管理本部门群聊', description: '审批本部门小组群聊创建申请', checked: false },
-      { id: 'group.cross.apply', name: '申请创建跨部门群聊', description: '需系统管理员最终审批', checked: false },
-      { id: 'group.apply', name: '申请创建本部门小组群聊', description: '需部门主管审批', checked: false },
-      { id: 'group.join', name: '申请加入小组群聊', description: '需双方主管审批', checked: false },
-    ],
-  },
-  {
-    category: '基础沟通',
-    permissions: [
-      { id: 'message.send', name: '发送消息', description: '发送文本消息', checked: false },
-      { id: 'message.recall', name: '撤回消息', description: '撤回已发送的消息', checked: false },
-      { id: 'message.forward', name: '转发消息', description: '转发他人消息', checked: false },
-      { id: 'message.history', name: '查看历史', description: '查看聊天历史记录', checked: false },
       { id: 'file.send', name: '发送文件', description: '上传并发送文件', checked: false },
       { id: 'file.receive', name: '接收文件', description: '接收并下载文件', checked: false },
-      { id: 'file.manage', name: '文件管理', description: '管理共享文件', checked: false },
-      { id: 'file.export', name: '导出数据', description: '导出聊天和文件数据', checked: false },
+    ],
+  },
+  {
+    category: '音视频通话',
+    permissions: [
       { id: 'call.voice', name: '语音通话', description: '发起语音通话', checked: false },
       { id: 'call.video', name: '视频通话', description: '发起视频通话', checked: false },
       { id: 'call.screen', name: '屏幕共享', description: '共享屏幕内容', checked: false },
@@ -99,25 +62,15 @@ const ALL_PERMISSIONS: PermissionCategory[] = [
     category: '群组功能',
     permissions: [
       { id: 'group.create', name: '创建群组', description: '创建新的群组', checked: false },
-      { id: 'group.join', name: '加入群组', description: '加入已有群组', checked: false },
       { id: 'group.manage', name: '管理群组', description: '管理群组设置和成员', checked: false },
-      { id: 'group.dissolve', name: '解散群组', description: '解散群组', checked: false },
     ],
   },
   {
-    category: '系统管理',
+    category: '用户管理',
     permissions: [
-      { id: 'system.settings', name: '系统设置', description: '修改系统配置', checked: false },
-      { id: 'report.view', name: '查看报表', description: '查看统计报表', checked: false },
-      { id: 'audit.view', name: '审计日志', description: '查看操作日志', checked: false },
-      { id: 'role.manage', name: '角色管理', description: '管理角色权限', checked: false },
-    ],
-  },
-  {
-    category: '数据访问',
-    permissions: [
-      { id: 'data.access.all', name: '查看全系统信息概况', description: '访问系统级数据统计', checked: false },
-      { id: 'data.access.public', name: '查看企业公开讯息', description: '访问公开信息和通知', checked: false },
+      { id: 'user.create', name: '创建用户', description: '添加新用户', checked: false },
+      { id: 'user.edit', name: '编辑用户', description: '修改用户信息', checked: false },
+      { id: 'user.delete', name: '删除用户', description: '删除用户账号', checked: false },
     ],
   },
 ];
@@ -258,7 +211,7 @@ export function RolePermissionsDialog({
             编辑角色权限 - {roleName}
           </DialogTitle>
           <DialogDescription>
-            配置该角色的细粒度功能权限
+            配置该角色的功能权限（系统包含三种固定角色：系统管理员、部门主管和普通员工）
           </DialogDescription>
         </DialogHeader>
 

@@ -43,8 +43,8 @@ import {
   Plus
 } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
-import { RoleMembersDialog } from './RoleMembersDialog';
-import { RolePermissionsDialog } from './RolePermissionsDialog';
+// import { RoleMembersDialog } from './RoleMembersDialog';
+// import { RolePermissionsDialog } from './RolePermissionsDialog';
 import { DepartmentMembersDialog } from './DepartmentMembersDialog';
 import { DepartmentEditDialog } from './DepartmentEditDialog';
 import { DepartmentCreateDialog } from './DepartmentCreateDialog';
@@ -87,9 +87,9 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
   const [_isLoading, setIsLoading] = useState(false);
 
   // 对话框状态管理
-  const [roleMembersOpen, setRoleMembersOpen] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [rolePermissionsOpen, setRolePermissionsOpen] = useState(false);
+  const [_roleMembersOpen, _setRoleMembersOpen] = useState(false);
+  const [_selectedRole, _setSelectedRole] = useState<Role | null>(null);
+  const [_rolePermissionsOpen, _setRolePermissionsOpen] = useState(false);
   const [deptMembersOpen, setDeptMembersOpen] = useState(false);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptEditOpen, setDeptEditOpen] = useState(false);
@@ -200,7 +200,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     }
   };
 
-  const handleUpdateUserStatus = async (userId: string, status: 'active' | 'inactive' | 'suspended') => {
+  const _handleUpdateUserStatus = async (userId: string, status: 'active' | 'inactive' | 'suspended') => {
     try {
       await apiService.updateUserStatus(userId, status);
       toast.success('用户状态更新成功');
@@ -214,17 +214,9 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
 
   // 权限项定义
   const permissionCategories = {
-    '消息通讯': [
-      { id: 'message.send', name: '发送消息', description: '发送文本消息' },
-      { id: 'message.recall', name: '撤回消息', description: '撤回已发送的消息' },
-      { id: 'message.forward', name: '转发消息', description: '转发他人消息' },
-      { id: 'message.history', name: '查看历史', description: '查看聊天历史记录' },
-    ],
     '文件管理': [
       { id: 'file.send', name: '发送文件', description: '上传并发送文件' },
       { id: 'file.receive', name: '接收文件', description: '接收并下载文件' },
-      { id: 'file.manage', name: '文件管理', description: '管理共享文件' },
-      { id: 'file.export', name: '导出数据', description: '导出聊天和文件数据' },
     ],
     '音视频通话': [
       { id: 'call.voice', name: '语音通话', description: '发起语音通话' },
@@ -234,20 +226,12 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     ],
     '群组功能': [
       { id: 'group.create', name: '创建群组', description: '创建新的群组' },
-      { id: 'group.join', name: '加入群组', description: '加入已有群组' },
       { id: 'group.manage', name: '管理群组', description: '管理群组设置和成员' },
-      { id: 'group.dissolve', name: '解散群组', description: '解散群组' },
     ],
     '用户管理': [
-      { id: 'user.view', name: '查看用户', description: '查看用户信息' },
       { id: 'user.create', name: '创建用户', description: '添加新用户' },
       { id: 'user.edit', name: '编辑用户', description: '修改用户信息' },
       { id: 'user.delete', name: '删除用户', description: '删除用户账号' },
-    ],
-    '系统管理': [
-      { id: 'system.settings', name: '系统设置', description: '修改系统配置' },
-      { id: 'report.view', name: '查看报表', description: '查看统计报表' },
-      { id: 'role.manage', name: '角色管理', description: '管理角色权限' },
     ],
   };
 
@@ -272,7 +256,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
 
   const menuItems = [
     { id: 'users', icon: Users, label: '用户管理', count: users.length },
-    { id: 'roles', icon: UserCog, label: '角色权限', count: roles.length },
+    { id: 'permissions', icon: UserCog, label: '权限矩阵' },
     { id: 'departments', icon: Building2, label: '组织架构', count: departments.length },
     { id: 'security', icon: Lock, label: '安全策略' },
     { id: 'statistics', icon: BarChart3, label: '统计分析' },
@@ -457,81 +441,23 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                 </div>
               )}
 
-              {/* 角色权限 */}
-              {activeMenu === 'roles' && (
+              {/* 权限矩阵 */}
+              {activeMenu === 'permissions' && (
                 <div className="space-y-6 max-h-[calc(100vh-120px)] overflow-y-auto">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900">角色权限</h2>
-                      <p className="text-gray-500 mt-1">定义角色并分配相应的权限</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button className="gap-2 bg-purple-600 hover:bg-purple-700">
-                        <Plus className="h-4 w-4" />
-                        创建角色
-                      </Button>
+                      <h2 className="text-2xl font-bold text-gray-900">权限矩阵</h2>
+                      <p className="text-gray-500 mt-1">为不同角色配置具体的功能权限</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {roles.map((role) => (
-                      <Card key={role.id} className="hover:shadow-lg transition-shadow">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <CardTitle className="flex items-center gap-2">
-                                <UserCog className="h-5 w-5 text-purple-600" />
-                                {role.name}
-                              </CardTitle>
-                              <CardDescription className="mt-2">{role.description}</CardDescription>
-                            </div>
-                            <Badge variant="secondary">{role.userCount} 人</Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div>
-                            <div className="text-sm font-medium mb-2">已分配权限</div>
-                            <div className="flex flex-wrap gap-2">
-                              {role.permissions.slice(0, 5).map((perm) => (
-                                <Badge key={perm} variant="outline" className="text-xs">
-                                  {perm}
-                                </Badge>
-                              ))}
-                              {role.permissions.length > 5 && (
-                                <Badge variant="outline" className="text-xs bg-gray-50">
-                                  +{role.permissions.length - 5}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                              setSelectedRole(role);
-                              setRolePermissionsOpen(true);
-                            }}>
-                              <Edit className="h-3 w-3 mr-1" />
-                              编辑权限
-                            </Button>
-                            <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                              setSelectedRole(role);
-                              setRoleMembersOpen(true);
-                            }}>
-                              <Users className="h-3 w-3 mr-1" />
-                              查看成员
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-
-                  {/* 合并的权限矩阵功能 */}
-                  <Card className="sticky top-0 z-10">
+                  {/* 权限矩阵配置 */}
+                  <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div>
-                          <CardTitle>权限矩阵</CardTitle>
-                          <CardDescription>为不同角色配置具体的功能权限</CardDescription>
+                          <CardTitle>角色权限配置</CardTitle>
+                          <CardDescription>系统包含三种固定角色：系统管理员、部门主管和普通员工</CardDescription>
                         </div>
                         <Select defaultValue="2">
                           <SelectTrigger className="w-48">
@@ -1065,28 +991,28 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
       </div>
 
       {/* 对话框 */}
-      {selectedRole && (
+      {/* 角色相关对话框已移除，角色现在是固定的 */}
+      {/* {_selectedRole && (
         <>
           <RoleMembersDialog
-            open={roleMembersOpen}
-            onClose={() => setRoleMembersOpen(false)}
-            roleName={selectedRole.name}
-            roleId={selectedRole.id}
+            open={_roleMembersOpen}
+            onClose={() => _setRoleMembersOpen(false)}
+            roleName={_selectedRole.name}
+            roleId={_selectedRole.id}
           />
           <RolePermissionsDialog
-            open={rolePermissionsOpen}
-            onClose={() => setRolePermissionsOpen(false)}
-            roleName={selectedRole.name}
-            roleId={selectedRole.id}
+            open={_rolePermissionsOpen}
+            onClose={() => _setRolePermissionsOpen(false)}
+            roleName={_selectedRole.name}
+            roleId={_selectedRole.id}
             onSave={(permissions) => {
-              // 可选：处理保存后的权限数据
               console.log('Permissions saved:', permissions);
-              loadData(); // 重新加载数据
+              loadData();
             }}
           />
         </>
-      )}
-      
+      )} */}
+
       {selectedDept && (
         <>
           <DepartmentMembersDialog
