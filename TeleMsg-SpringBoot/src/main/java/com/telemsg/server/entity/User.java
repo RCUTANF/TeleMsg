@@ -57,6 +57,9 @@ public class User {
     @Column(length = 50)
     private String lastLoginIp;
 
+    @Column(length = 50)
+    private String departmentId;
+
     @Column
     private Boolean isAdmin = false;
 

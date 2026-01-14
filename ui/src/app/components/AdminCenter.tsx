@@ -23,7 +23,6 @@ import {
   SelectValue,
 } from './ui/select';
 import { Switch } from './ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
 import {
@@ -37,23 +36,19 @@ import {
   ArrowLeft,
   Building2,
   Lock,
-  FileCheck,
-  History,
   Settings,
   UserCog,
   FolderTree,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Download,
   Upload,
   Plus
 } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
-import { RoleMembersDialog } from './RoleMembersDialog';
-import { RolePermissionsDialog } from './RolePermissionsDialog';
+// import { RoleMembersDialog } from './RoleMembersDialog';
+// import { RolePermissionsDialog } from './RolePermissionsDialog';
 import { DepartmentMembersDialog } from './DepartmentMembersDialog';
 import { DepartmentEditDialog } from './DepartmentEditDialog';
+import { DepartmentCreateDialog } from './DepartmentCreateDialog';
+import { UserManagementDialog } from './UserManagementDialog';
 
 interface AdminCenterProps {
   onClose: () => void;
@@ -92,12 +87,15 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
   const [_isLoading, setIsLoading] = useState(false);
 
   // 对话框状态管理
-  const [roleMembersOpen, setRoleMembersOpen] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [rolePermissionsOpen, setRolePermissionsOpen] = useState(false);
+  const [_roleMembersOpen, _setRoleMembersOpen] = useState(false);
+  const [_selectedRole, _setSelectedRole] = useState<Role | null>(null);
+  const [_rolePermissionsOpen, _setRolePermissionsOpen] = useState(false);
   const [deptMembersOpen, setDeptMembersOpen] = useState(false);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptEditOpen, setDeptEditOpen] = useState(false);
+  const [deptCreateOpen, setDeptCreateOpen] = useState(false);
+  const [userManagementOpen, setUserManagementOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   // 安全策略状态
   const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy>({
@@ -176,20 +174,49 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     }
   };
 
+  // 用户管理操作
+  const handleAddUser = () => {
+    setSelectedUser(null);
+    setUserManagementOpen(true);
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setUserManagementOpen(true);
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`确定要删除用户 "${userName}" 吗？此操作不可恢复。`)) {
+      return;
+    }
+
+    try {
+      await apiService.deleteUser(userId);
+      toast.success('用户删除成功');
+      loadData();
+    } catch (error: any) {
+      console.error('删除用户失败:', error);
+      toast.error(error.message || '删除用户失败');
+    }
+  };
+
+  const _handleUpdateUserStatus = async (userId: string, status: 'active' | 'inactive' | 'suspended') => {
+    try {
+      await apiService.updateUserStatus(userId, status);
+      toast.success('用户状态更新成功');
+      loadData();
+    } catch (error: any) {
+      console.error('更新用户状态失败:', error);
+      toast.error(error.message || '更新用户状态失败');
+    }
+  };
+
 
   // 权限项定义
   const permissionCategories = {
-    '消息通讯': [
-      { id: 'message.send', name: '发送消息', description: '发送文本消息' },
-      { id: 'message.recall', name: '撤回消息', description: '撤回已发送的消息' },
-      { id: 'message.forward', name: '转发消息', description: '转发他人消息' },
-      { id: 'message.history', name: '查看历史', description: '查看聊天历史记录' },
-    ],
     '文件管理': [
       { id: 'file.send', name: '发送文件', description: '上传并发送文件' },
       { id: 'file.receive', name: '接收文件', description: '接收并下载文件' },
-      { id: 'file.manage', name: '文件管理', description: '管理共享文件' },
-      { id: 'file.export', name: '导出数据', description: '导出聊天和文件数据' },
     ],
     '音视频通话': [
       { id: 'call.voice', name: '语音通话', description: '发起语音通话' },
@@ -199,38 +226,15 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     ],
     '群组功能': [
       { id: 'group.create', name: '创建群组', description: '创建新的群组' },
-      { id: 'group.join', name: '加入群组', description: '加入已有群组' },
       { id: 'group.manage', name: '管理群组', description: '管理群组设置和成员' },
-      { id: 'group.dissolve', name: '解散群组', description: '解散群组' },
     ],
     '用户管理': [
-      { id: 'user.view', name: '查看用户', description: '查看用户信息' },
       { id: 'user.create', name: '创建用户', description: '添加新用户' },
       { id: 'user.edit', name: '编辑用户', description: '修改用户信息' },
       { id: 'user.delete', name: '删除用户', description: '删除用户账号' },
     ],
-    '系统管理': [
-      { id: 'system.settings', name: '系统设置', description: '修改系统配置' },
-      { id: 'report.view', name: '查看报表', description: '查看统计报表' },
-      { id: 'audit.view', name: '审计日志', description: '查看操作日志' },
-      { id: 'role.manage', name: '角色管理', description: '管理角色权限' },
-    ],
   };
 
-  // 待审批项
-  const [pendingApprovals] = useState([
-    { id: '1', type: '用户注册', user: '新用户001', department: '技术部', time: '5分钟前', status: 'pending' },
-    { id: '2', type: '文件分享', user: '李四', department: '市场部', time: '1小时前', status: 'pending' },
-    { id: '3', type: '权限申请', user: '王五', department: '技术部', time: '2小时前', status: 'pending' },
-  ]);
-
-  // 审计日志
-  const [auditLogs] = useState([
-    { id: '1', user: '张三', action: '修改用户权限', target: '李四', time: '2026-01-11 14:30:00', result: 'success' },
-    { id: '2', user: '李四', action: '创建群组', target: '产品讨论组', time: '2026-01-11 13:15:00', result: 'success' },
-    { id: '3', user: '王五', action: '导出数据', target: '聊天记录', time: '2026-01-11 11:20:00', result: 'failed' },
-    { id: '4', user: '张三', action: '删除用户', target: '赵六', time: '2026-01-11 10:00:00', result: 'success' },
-  ]);
 
   const statusColors = {
     active: 'bg-green-100 text-green-700 border-green-200',
@@ -252,11 +256,9 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
 
   const menuItems = [
     { id: 'users', icon: Users, label: '用户管理', count: users.length },
-    { id: 'roles', icon: UserCog, label: '角色权限', count: roles.length },
+    { id: 'permissions', icon: UserCog, label: '权限矩阵' },
     { id: 'departments', icon: Building2, label: '组织架构', count: departments.length },
-    { id: 'approvals', icon: FileCheck, label: '审批管理', count: pendingApprovals.length },
     { id: 'security', icon: Lock, label: '安全策略' },
-    { id: 'audit', icon: History, label: '审计日志' },
     { id: 'statistics', icon: BarChart3, label: '统计分析' },
   ];
 
@@ -335,7 +337,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                       <h2 className="text-2xl font-bold text-gray-900">用户管理</h2>
                       <p className="text-gray-500 mt-1">管理系统中的所有用户账号</p>
                     </div>
-                    <Button className="gap-2 bg-purple-600 hover:bg-purple-700">
+                    <Button className="gap-2 bg-purple-600 hover:bg-purple-700" onClick={handleAddUser}>
                       <UserPlus className="h-4 w-4" />
                       添加用户
                     </Button>
@@ -422,10 +424,10 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                               <TableCell className="text-gray-500 text-sm">{user.createdAt || '-'}</TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-1">
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user)}>
                                     <Edit className="h-4 w-4" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteUser(user.id, user.name)}>
                                     <Trash2 className="h-4 w-4 text-red-500" />
                                   </Button>
                                 </div>
@@ -439,81 +441,23 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                 </div>
               )}
 
-              {/* 角色权限 */}
-              {activeMenu === 'roles' && (
+              {/* 权限矩阵 */}
+              {activeMenu === 'permissions' && (
                 <div className="space-y-6 max-h-[calc(100vh-120px)] overflow-y-auto">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900">角色权限</h2>
-                      <p className="text-gray-500 mt-1">定义角色并分配相应的权限</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button className="gap-2 bg-purple-600 hover:bg-purple-700">
-                        <Plus className="h-4 w-4" />
-                        创建角色
-                      </Button>
+                      <h2 className="text-2xl font-bold text-gray-900">权限矩阵</h2>
+                      <p className="text-gray-500 mt-1">为不同角色配置具体的功能权限</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {roles.map((role) => (
-                      <Card key={role.id} className="hover:shadow-lg transition-shadow">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <CardTitle className="flex items-center gap-2">
-                                <UserCog className="h-5 w-5 text-purple-600" />
-                                {role.name}
-                              </CardTitle>
-                              <CardDescription className="mt-2">{role.description}</CardDescription>
-                            </div>
-                            <Badge variant="secondary">{role.userCount} 人</Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div>
-                            <div className="text-sm font-medium mb-2">已分配权限</div>
-                            <div className="flex flex-wrap gap-2">
-                              {role.permissions.slice(0, 5).map((perm) => (
-                                <Badge key={perm} variant="outline" className="text-xs">
-                                  {perm}
-                                </Badge>
-                              ))}
-                              {role.permissions.length > 5 && (
-                                <Badge variant="outline" className="text-xs bg-gray-50">
-                                  +{role.permissions.length - 5}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                              setSelectedRole(role);
-                              setRolePermissionsOpen(true);
-                            }}>
-                              <Edit className="h-3 w-3 mr-1" />
-                              编辑权限
-                            </Button>
-                            <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                              setSelectedRole(role);
-                              setRoleMembersOpen(true);
-                            }}>
-                              <Users className="h-3 w-3 mr-1" />
-                              查看成员
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-
-                  {/* 合并的权限矩阵功能 */}
-                  <Card className="sticky top-0 z-10">
+                  {/* 权限矩阵配置 */}
+                  <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div>
-                          <CardTitle>权限矩阵</CardTitle>
-                          <CardDescription>为不同角色配置具体的功能权限</CardDescription>
+                          <CardTitle>角色权限配置</CardTitle>
+                          <CardDescription>系统包含三种固定角色：系统管理员、部门主管和普通员工</CardDescription>
                         </div>
                         <Select defaultValue="2">
                           <SelectTrigger className="w-48">
@@ -576,7 +520,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                       <h2 className="text-2xl font-bold text-gray-900">组织架构</h2>
                       <p className="text-gray-500 mt-1">管理企业的部门和团队结构</p>
                     </div>
-                    <Button className="gap-2 bg-purple-600 hover:bg-purple-700">
+                    <Button className="gap-2 bg-purple-600 hover:bg-purple-700" onClick={() => setDeptCreateOpen(true)}>
                       <Plus className="h-4 w-4" />
                       创建部门
                     </Button>
@@ -631,69 +575,6 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                 </div>
               )}
 
-
-
-              {/* 审批管理 */}
-              {activeMenu === 'approvals' && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">审批管理</h2>
-                    <p className="text-gray-500 mt-1">处理用户申请和敏感操作审批</p>
-                  </div>
-
-                  <Tabs defaultValue="pending">
-                    <TabsList>
-                      <TabsTrigger value="pending" className="gap-2">
-                        待审批
-                        <Badge variant="secondary">{pendingApprovals.length}</Badge>
-                      </TabsTrigger>
-                      <TabsTrigger value="approved">已通过</TabsTrigger>
-                      <TabsTrigger value="rejected">已拒绝</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="pending" className="space-y-4 mt-6">
-                      {pendingApprovals.map((approval) => (
-                        <Card key={approval.id}>
-                          <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4 flex-1">
-                                <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
-                                  <AlertCircle className="h-6 w-6 text-orange-600" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-3">
-                                    <h4 className="font-semibold text-gray-900">{approval.type}</h4>
-                                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                      待审批
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                                    <span>申请人：{approval.user}</span>
-                                    <span>•</span>
-                                    <span>部门：{approval.department}</span>
-                                    <span>•</span>
-                                    <span>{approval.time}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button variant="outline" className="gap-2">
-                                  <XCircle className="h-4 w-4" />
-                                  拒绝
-                                </Button>
-                                <Button className="gap-2 bg-green-600 hover:bg-green-700">
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  通过
-                                </Button>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              )}
 
               {/* 安全策略 */}
               {activeMenu === 'security' && (
@@ -855,7 +736,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                          <FileCheck className="h-5 w-5 text-purple-600" />
+                          <Shield className="h-5 w-5 text-purple-600" />
                           内容审核
                         </CardTitle>
                       </CardHeader>
@@ -978,86 +859,6 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                 </div>
               )}
 
-              {/* 审计日志 */}
-              {activeMenu === 'audit' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">审计日志</h2>
-                      <p className="text-gray-500 mt-1">查看系统操作记录和安全事件</p>
-                    </div>
-                    <Button variant="outline" className="gap-2">
-                      <Download className="h-4 w-4" />
-                      导出日志
-                    </Button>
-                  </div>
-
-                  <Card>
-                    <CardHeader>
-                      <div className="flex gap-3">
-                        <Input placeholder="搜索日志..." className="flex-1" />
-                        <Select defaultValue="all">
-                          <SelectTrigger className="w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">全部操作</SelectItem>
-                            <SelectItem value="user">用户管理</SelectItem>
-                            <SelectItem value="permission">权限变更</SelectItem>
-                            <SelectItem value="data">数据操作</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select defaultValue="today">
-                          <SelectTrigger className="w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="today">今天</SelectItem>
-                            <SelectItem value="week">最近7天</SelectItem>
-                            <SelectItem value="month">最近30天</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>操作人</TableHead>
-                            <TableHead>操作类型</TableHead>
-                            <TableHead>操作对象</TableHead>
-                            <TableHead>操作时间</TableHead>
-                            <TableHead>结果</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {auditLogs.map((log) => (
-                            <TableRow key={log.id}>
-                              <TableCell className="font-medium">{log.user}</TableCell>
-                              <TableCell>{log.action}</TableCell>
-                              <TableCell className="text-gray-600">{log.target}</TableCell>
-                              <TableCell className="text-gray-500 text-sm">{log.time}</TableCell>
-                              <TableCell>
-                                {log.result === 'success' ? (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    成功
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    失败
-                                  </Badge>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
 
               {/* 统计分析 */}
               {activeMenu === 'statistics' && (
@@ -1190,28 +991,28 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
       </div>
 
       {/* 对话框 */}
-      {selectedRole && (
+      {/* 角色相关对话框已移除，角色现在是固定的 */}
+      {/* {_selectedRole && (
         <>
           <RoleMembersDialog
-            open={roleMembersOpen}
-            onClose={() => setRoleMembersOpen(false)}
-            roleName={selectedRole.name}
-            roleId={selectedRole.id}
+            open={_roleMembersOpen}
+            onClose={() => _setRoleMembersOpen(false)}
+            roleName={_selectedRole.name}
+            roleId={_selectedRole.id}
           />
           <RolePermissionsDialog
-            open={rolePermissionsOpen}
-            onClose={() => setRolePermissionsOpen(false)}
-            roleName={selectedRole.name}
-            roleId={selectedRole.id}
+            open={_rolePermissionsOpen}
+            onClose={() => _setRolePermissionsOpen(false)}
+            roleName={_selectedRole.name}
+            roleId={_selectedRole.id}
             onSave={(permissions) => {
-              // 可选：处理保存后的权限数据
               console.log('Permissions saved:', permissions);
-              loadData(); // 重新加载数据
+              loadData();
             }}
           />
         </>
-      )}
-      
+      )} */}
+
       {selectedDept && (
         <>
           <DepartmentMembersDialog
@@ -1231,6 +1032,20 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
           />
         </>
       )}
+
+      <DepartmentCreateDialog
+        open={deptCreateOpen}
+        onClose={() => setDeptCreateOpen(false)}
+        onSaved={() => loadData()}
+      />
+
+      <UserManagementDialog
+        open={userManagementOpen}
+        onClose={() => setUserManagementOpen(false)}
+        user={selectedUser}
+        departments={departments}
+        onSaved={() => loadData()}
+      />
     </div>
   );
 }

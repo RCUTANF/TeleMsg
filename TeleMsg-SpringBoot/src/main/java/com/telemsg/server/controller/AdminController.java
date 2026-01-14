@@ -1,9 +1,11 @@
 package com.telemsg.server.controller;
 
 import com.telemsg.server.entity.User;
+import com.telemsg.server.entity.Department;
 import com.telemsg.server.service.UserService;
 import com.telemsg.server.service.MessageService;
 import com.telemsg.server.service.JwtService;
+import com.telemsg.server.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +33,7 @@ public class AdminController {
     private final UserService userService;
     private final MessageService messageService;
     private final JwtService jwtService;
+    private final DepartmentService departmentService;
 
     /**
      * 获取所有用户
@@ -38,9 +41,7 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<?> getAllUsers(@RequestHeader("Authorization") String authHeader) {
         try {
-            String adminId = extractUserIdFromToken(authHeader);
-
-            // 这里应该验证是否为管理员权限
+            extractUserAndCheckAdmin(authHeader);
 
             List<User> users = userService.findAllUsers();
             List<Map<String, Object>> userResponses = users.stream()
@@ -62,9 +63,7 @@ public class AdminController {
     public ResponseEntity<?> deleteUser(@RequestHeader("Authorization") String authHeader,
                                       @PathVariable String userId) {
         try {
-            String adminId = extractUserIdFromToken(authHeader);
-
-            // 这里应该验证是否为管理员权限
+            extractUserAndCheckAdmin(authHeader);
 
             userService.deleteUser(userId);
 
@@ -84,20 +83,14 @@ public class AdminController {
                                           @PathVariable String userId,
                                           @RequestBody @Validated UpdateRoleRequest request) {
         try {
-            String adminId = extractUserIdFromToken(authHeader);
+            extractUserAndCheckAdmin(authHeader);
 
-            // 这里应该验证是否为管理员权限
-            // 这里应该实现角色更新逻辑
+            User.UserRole role = User.UserRole.valueOf(request.getRole().toUpperCase());
+            Boolean isAdmin = role == User.UserRole.DIRECTOR; // 假设DIRECTOR是管理员
 
-            User user = userService.findByUserId(userId).orElse(null);
-            if (user == null) {
-                return ResponseEntity.badRequest().body(Map.of("error", "用户不存在"));
-            }
+            User updatedUser = userService.updateUserRoleAndPermission(userId, role, isAdmin);
 
-            Map<String, Object> response = convertToUserResponse(user);
-            response.put("role", request.getRole());
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(convertToUserResponse(updatedUser));
 
         } catch (Exception e) {
             log.error("更新用户角色失败", e);
@@ -111,9 +104,7 @@ public class AdminController {
     @GetMapping("/stats")
     public ResponseEntity<?> getSystemStats(@RequestHeader("Authorization") String authHeader) {
         try {
-            String adminId = extractUserIdFromToken(authHeader);
-
-            // 这里应该验证是否为管理员权限
+            extractUserAndCheckAdmin(authHeader);
 
             long totalUsers = userService.getTotalUserCount();
             long onlineUsers = userService.getOnlineUserCount();
@@ -134,6 +125,158 @@ public class AdminController {
     }
 
     /**
+     * 获取部门列表
+     */
+    @GetMapping("/departments")
+    public ResponseEntity<?> getDepartments(@RequestHeader("Authorization") String authHeader) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            List<Department> departments = departmentService.findAllDepartments();
+            List<Map<String, Object>> departmentResponses = departments.stream()
+                .map(this::convertToDepartmentResponse)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(departmentResponses);
+
+        } catch (Exception e) {
+            log.error("获取部门列表失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "获取部门列表失败"));
+        }
+    }
+
+    /**
+     * 创建部门
+     */
+    @PostMapping("/departments")
+    public ResponseEntity<?> createDepartment(@RequestHeader("Authorization") String authHeader,
+                                            @RequestBody @Validated CreateDepartmentRequest request) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            Department department = departmentService.createDepartment(
+                request.getName(),
+                null, // description
+                request.getManager(),
+                request.getParent()
+            );
+
+            return ResponseEntity.ok(convertToDepartmentResponse(department));
+
+        } catch (Exception e) {
+            log.error("创建部门失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "创建部门失败"));
+        }
+    }
+
+    /**
+     * 获取部门成员
+     */
+    @GetMapping("/departments/{departmentId}/members")
+    public ResponseEntity<?> getDepartmentMembers(@RequestHeader("Authorization") String authHeader,
+                                                @PathVariable String departmentId) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            List<User> members = departmentService.findDepartmentMembers(departmentId);
+            List<Map<String, Object>> memberResponses = members.stream()
+                .map(this::convertToUserResponse)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(memberResponses);
+
+        } catch (Exception e) {
+            log.error("获取部门成员失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "获取部门成员失败"));
+        }
+    }
+
+    /**
+     * 添加部门成员
+     */
+    @PostMapping("/departments/{departmentId}/members")
+    public ResponseEntity<?> addDepartmentMembers(@RequestHeader("Authorization") String authHeader,
+                                                 @PathVariable String departmentId,
+                                                 @RequestBody @Validated AddDepartmentMembersRequest request) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            departmentService.addDepartmentMembers(departmentId, request.getUserIds());
+
+            return ResponseEntity.ok(Map.of("message", "成功添加 " + request.getUserIds().size() + " 名成员"));
+
+        } catch (Exception e) {
+            log.error("添加部门成员失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "添加部门成员失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 移除部门成员
+     */
+    @DeleteMapping("/departments/{departmentId}/members/{userId}")
+    public ResponseEntity<?> removeDepartmentMember(@RequestHeader("Authorization") String authHeader,
+                                                   @PathVariable String departmentId,
+                                                   @PathVariable String userId) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            departmentService.removeDepartmentMember(departmentId, userId);
+
+            return ResponseEntity.ok(Map.of("message", "成功移除成员"));
+
+        } catch (Exception e) {
+            log.error("移除部门成员失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "移除部门成员失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 获取角色列表
+     */
+    @GetMapping("/roles")
+    public ResponseEntity<?> getRoles(@RequestHeader("Authorization") String authHeader) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            List<Map<String, Object>> roles = List.of(
+                Map.of("id", "DIRECTOR", "name", "系统管理员", "description", "全局审批 + 最终决策权", "userCount", userService.getUsersByRole(User.UserRole.DIRECTOR).size(), "permissions", List.of("全系统审批", "最终决策权", "人员管理", "数据管理")),
+                Map.of("id", "MANAGER", "name", "部门主管", "description", "本部门审批 + 跨部门申请发起", "userCount", userService.getUsersByRole(User.UserRole.MANAGER).size(), "permissions", List.of("本部门审批", "跨部门申请", "群聊创建")),
+                Map.of("id", "EMPLOYEE", "name", "普通员工", "description", "基础聊天功能", "userCount", userService.getUsersByRole(User.UserRole.EMPLOYEE).size(), "permissions", List.of("发起申请", "查看个人数据"))
+            );
+
+            return ResponseEntity.ok(roles);
+
+        } catch (Exception e) {
+            log.error("获取角色列表失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "获取角色列表失败"));
+        }
+    }
+
+    /**
+     * 获取角色成员
+     */
+    @GetMapping("/roles/{roleId}/members")
+    public ResponseEntity<?> getRoleMembers(@RequestHeader("Authorization") String authHeader,
+                                          @PathVariable String roleId) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            User.UserRole role = User.UserRole.valueOf(roleId.toUpperCase());
+            List<User> members = userService.getUsersByRole(role);
+            List<Map<String, Object>> memberResponses = members.stream()
+                .map(this::convertToUserResponse)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(memberResponses);
+
+        } catch (Exception e) {
+            log.error("获取角色成员失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "获取角色成员失败"));
+        }
+    }
+
+    /**
      * 从JWT token中提取用户ID
      */
     private String extractUserIdFromToken(String authHeader) {
@@ -141,6 +284,27 @@ public class AdminController {
             String token = authHeader.substring(7);
             try {
                 return jwtService.extractUserId(token);
+            } catch (Exception e) {
+                log.error("解析JWT token失败", e);
+                throw new RuntimeException("无效的认证token");
+            }
+        }
+        throw new RuntimeException("无效的认证token");
+    }
+
+    /**
+     * 从JWT token中提取用户ID并验证管理员权限
+     */
+    private User extractUserAndCheckAdmin(String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
+                String userId = jwtService.extractUserId(token);
+                User user = userService.findByUserId(userId).orElseThrow(() -> new RuntimeException("用户不存在"));
+                if (!Boolean.TRUE.equals(user.getIsAdmin())) {
+                    throw new RuntimeException("需要管理员权限");
+                }
+                return user;
             } catch (Exception e) {
                 log.error("解析JWT token失败", e);
                 throw new RuntimeException("无效的认证token");
@@ -158,7 +322,21 @@ public class AdminController {
         response.put("name", user.getUsername());
         response.put("username", user.getUsername());
         response.put("avatar", user.getAvatar() != null ? user.getAvatar() : "");
-        response.put("role", "user"); // 默认角色
+        response.put("role", user.getRole().name().toLowerCase());
+        response.put("isAdmin", user.getIsAdmin());
+        return response;
+    }
+
+    /**
+     * 转换为部门响应格式
+     */
+    private Map<String, Object> convertToDepartmentResponse(Department department) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", department.getDepartmentId());
+        response.put("name", department.getName());
+        response.put("manager", department.getManagerId());
+        response.put("memberCount", departmentService.getDepartmentMemberCount(department.getDepartmentId()));
+        response.put("parent", department.getParentDepartmentId());
         return response;
     }
 
@@ -170,5 +348,35 @@ public class AdminController {
         // Getters and Setters
         public String getRole() { return role; }
         public void setRole(String role) { this.role = role; }
+    }
+
+    // 创建部门请求对象
+    public static class CreateDepartmentRequest {
+        @NotBlank(message = "部门名称不能为空")
+        private String name;
+
+        @NotBlank(message = "部门经理不能为空")
+        private String manager;
+
+        private String parent; // 上级部门ID，可选
+
+        // Getters and Setters
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+
+        public String getManager() { return manager; }
+        public void setManager(String manager) { this.manager = manager; }
+
+        public String getParent() { return parent; }
+        public void setParent(String parent) { this.parent = parent; }
+    }
+
+    // 添加部门成员请求对象
+    public static class AddDepartmentMembersRequest {
+        private List<String> userIds;
+
+        // Getters and Setters
+        public List<String> getUserIds() { return userIds; }
+        public void setUserIds(List<String> userIds) { this.userIds = userIds; }
     }
 }
