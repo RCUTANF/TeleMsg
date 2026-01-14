@@ -132,7 +132,7 @@ class ApiService {
 
   constructor() {
     this.baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080/api';
-    this.wsBaseUrl = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080/ws';
+    this.wsBaseUrl = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080/api/ws';
   }
 
   // 核心请求方法封装
@@ -660,41 +660,44 @@ class ApiService {
 
   connectWebSocket(userId: string, onMessage: (data: any) => void): void {
     if (this.ws) {
+      console.log('Closing existing WebSocket connection');
       this.ws.close();
     }
 
     const token = localStorage.getItem('auth_token');
     const wsUrl = `${this.wsBaseUrl}?token=${token}&userId=${userId}`;
 
-    console.log('Connecting to WebSocket:', wsUrl);
+    console.log('🔌 Connecting to WebSocket:', wsUrl.replace(token || '', '[TOKEN]'));
 
     this.ws = new WebSocket(wsUrl);
     this.wsMessageHandler = onMessage;
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('✅ WebSocket connected successfully');
     };
 
     this.ws.onmessage = (event) => {
       try {
+        console.log('📨 WebSocket raw message received:', event.data);
         const data = JSON.parse(event.data);
+        console.log('📨 WebSocket parsed message:', data);
         this.wsMessageHandler?.(data);
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
+        console.error('❌ Failed to parse WebSocket message:', error, 'Raw data:', event.data);
       }
     };
 
     this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('❌ WebSocket error:', error);
     };
 
-    this.ws.onclose = () => {
-      console.log('WebSocket disconnected');
+    this.ws.onclose = (event) => {
+      console.log('🔌 WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
       // 简单的重连机制
       setTimeout(() => {
         // 只有当不是主动断开（this.ws 不为 null）时才重连
         if (this.wsMessageHandler) {
-          console.log('Attempting to reconnect WebSocket...');
+          console.log('🔄 Attempting to reconnect WebSocket...');
           this.connectWebSocket(userId, this.wsMessageHandler);
         }
       }, 3000);

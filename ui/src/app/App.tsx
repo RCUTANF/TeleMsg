@@ -1,5 +1,5 @@
 // ui/src/app/App.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { ContactList, Contact } from './components/ContactList';
 import { ChatArea, Message } from './components/ChatArea';
@@ -140,24 +140,34 @@ function App() {
     }
   };
 
-  // 连接 WebSocket
-  const connectWebSocket = (userId: string) => {
-    apiService.connectWebSocket(userId, handleWebSocketMessage);
-  };
+  // 处理 WebSocket 消息的引用，使用 ref 避免闭包问题
+  const wsMessageHandlerRef = useRef<((data: any) => void) | null>(null);
 
-  // 处理 WebSocket 消息
-  const handleWebSocketMessage = (data: any) => {
-    switch (data.type) {
-      case 'message':
-        handleNewMessage(data.message);
-        break;
-      case 'contact_status':
-        updateContactStatus(data.contactId, data.status);
-        break;
-      default:
-        console.log('Unknown message type:', data.type);
-    }
-  };
+  // 连接 WebSocket - 移除 ref 检查，直接传入 handler
+  const connectWebSocket = useCallback((userId: string) => {
+    console.log('📡 Setting up WebSocket connection for user:', userId);
+    const handler = (data: any) => {
+      console.log('📩 WebSocket message received in handler:', data);
+      switch (data.type) {
+        case 'message':
+          console.log('💬 Processing message type:', data);
+          // 使用最新的 ref 来处理消息
+          if (wsMessageHandlerRef.current) {
+            wsMessageHandlerRef.current(data);
+          } else {
+            console.warn('⚠️ wsMessageHandlerRef.current is null');
+          }
+          break;
+        case 'contact_status':
+          console.log('👤 Processing contact status update:', data);
+          updateContactStatus(data.contactId, data.status);
+          break;
+        default:
+          console.log('❓ Unknown message type:', data.type, data);
+      }
+    };
+    apiService.connectWebSocket(userId, handler);
+  }, []);
 
   // ==========================================
   // useEffect 钩子
@@ -567,50 +577,91 @@ function App() {
   };
 
   // 处理新消息
-  const handleNewMessage = async (message: any) => {
+  const handleNewMessage = useCallback(async (messageData: any) => {
+    console.log('🔔 Processing new message in handleNewMessage:', messageData);
+
+    // 标准化消息格式
+    const message: Message = {
+      id: messageData.id || messageData.messageId || Date.now().toString(),
+      senderId: messageData.senderId,
+      receiverId: messageData.receiverId,
+      content: messageData.content,
+      timestamp: messageData.timestamp instanceof Date ? messageData.timestamp : new Date(messageData.timestamp || new Date()),
+      type: (messageData.type || messageData.messageType || 'text').toLowerCase() as 'text' | 'file' | 'image',
+      status: messageData.status || 'sent',
+      fileUrl: messageData.fileUrl || messageData.mediaUrl,
+      fileName: messageData.fileName,
+      fileSize: messageData.fileSize,
+      fileId: messageData.fileId,
+    };
+
+    console.log('📝 Standardized message:', message);
+
     // 确定消息的对话 ID
     let conversationId: string;
+    let isGroupMessage = false;
 
     // 判断是群聊还是私聊
-    if (message.groupId) {
+    if (messageData.groupId) {
       // 群聊消息
-      conversationId = message.groupId;
+      conversationId = messageData.groupId;
+      isGroupMessage = true;
+      console.log('👥 Group message detected. GroupId:', conversationId);
     } else {
       // 私聊消息（对方的 ID）
-      conversationId = message.senderId === currentUser?.id ? message.receiverId : message.senderId;
+      conversationId = message.senderId === currentUser?.id ? message.receiverId! : message.senderId;
+      console.log('💬 Private message detected. ConversationId:', conversationId);
     }
 
-    if (!conversationId) return;
-
-    // 检查这个消息是否属于某个讨论空间
-    const isDiscussionSpace = discussionSpaces.some(space => space.id === conversationId);
-
-    if (isDiscussionSpace) {
-      // 讨论空间的消息
-      if (conversationId === selectedDiscussionSpaceId) {
-        // 如果正在查看这个讨论空间，添加到讨论空间的消息列表
-        setMessagesByDiscussionSpace(prev => ({
-          ...prev,
-          [conversationId]: [...(prev[conversationId] || []), message]
-        }));
-      }
-      // 注意：讨论空间的消息不更新父群聊的最后消息
-    } else {
-      // 主群聊或私聊消息
-      if (conversationId === selectedContactId) {
-        setMessagesByContact(prev => ({
-          ...prev,
-          [conversationId]: [...(prev[conversationId] || []), message]
-        }));
-      }
-
-      // 更新联系人的最后消息（只有当消息不是当前用户发送的时候才更新）
-      if (message.senderId !== currentUser?.id) {
-        const shouldIncrement = conversationId !== selectedContactId;
-        await updateContactLastMessage(conversationId, message.content, shouldIncrement, !!message.groupId);
-      }
+    if (!conversationId) {
+      console.warn('⚠️ Cannot determine conversation ID for message:', message);
+      return;
     }
-  };
+
+    console.log('✅ Message conversation ID:', conversationId, 'isGroup:', isGroupMessage);
+
+    // 使用函数式状态更新来避免闭包问题
+    setDiscussionSpaces(currentSpaces => {
+      const isDiscussionSpace = currentSpaces.some(space => space.id === conversationId);
+
+      if (isDiscussionSpace) {
+        // 讨论空间的消息
+        setSelectedDiscussionSpaceId(currentSelectedSpace => {
+          if (conversationId === currentSelectedSpace) {
+            // 如果正在查看这个讨论空间，添加到讨论空间的消息列表
+            setMessagesByDiscussionSpace(prev => ({
+              ...prev,
+              [conversationId]: [...(prev[conversationId] || []), message]
+            }));
+          }
+          return currentSelectedSpace;
+        });
+        // 注意：讨论空间的消息不更新父群聊的最后消息
+      } else {
+        // 主群聊或私聊消息
+        setSelectedContactId(currentSelectedContact => {
+          if (conversationId === currentSelectedContact) {
+            setMessagesByContact(prev => ({
+              ...prev,
+              [conversationId]: [...(prev[conversationId] || []), message]
+            }));
+          }
+          return currentSelectedContact;
+        });
+
+        // 更新联系人的最后消息（只有当消息不是当前用户发送的时候才更新）
+        setCurrentUser(user => {
+          if (message.senderId !== user?.id) {
+            const shouldIncrement = conversationId !== selectedContactId;
+            updateContactLastMessage(conversationId, message.content, shouldIncrement, isGroupMessage);
+          }
+          return user;
+        });
+      }
+
+      return currentSpaces;
+    });
+  }, [currentUser?.id, selectedContactId]);
 
   // 更新联系人最后消息
   const updateContactLastMessage = async (
@@ -689,11 +740,24 @@ function App() {
   };
 
   // 更新联系人状态
-  const updateContactStatus = (contactId: string, status: Contact['status']) => {
+  const updateContactStatus = useCallback((contactId: string, status: Contact['status']) => {
     setContacts((prev) =>
       prev.map((c) => (c.id === contactId ? { ...c, status } : c))
     );
-  };
+  }, []);
+
+  // 设置 WebSocket 消息处理函数
+  useEffect(() => {
+    console.log('🔧 Setting up wsMessageHandlerRef');
+    wsMessageHandlerRef.current = (data: any) => {
+      console.log('🎯 Processing WebSocket data in handler ref:', data);
+      // 直接调用 handleNewMessage，而不是再次检查 type
+      handleNewMessage(data.message || data);
+    };
+    return () => {
+      console.log('🔧 Cleaning up wsMessageHandlerRef');
+    };
+  }, [handleNewMessage]);
 
   // 登录处理
   const handleLogin = async (user: User) => {
@@ -1058,7 +1122,7 @@ function App() {
         currentUser={currentUser}
         onUpdateProfile={handleUpdateProfile}
         onUpdateProxySettings={handleUpdateProxySettings}
-        onChangePassword={(oldPassword, newPassword) => {
+        onChangePassword={(_oldPassword, _newPassword) => {
           //TODO 这里可以添加与后端交互的逻辑
         }}
         securityPolicy={securityPolicy}

@@ -1,8 +1,10 @@
 package com.telemsg.server.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telemsg.server.entity.FileInfo;
 import com.telemsg.server.entity.Message;
 import com.telemsg.server.repository.MessageRepository;
+import com.telemsg.server.websocket.TeleMsgWebSocketHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -12,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +33,8 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final UserService userService;
     private final GroupService groupService;
+    private final TeleMsgWebSocketHandler webSocketHandler;
+    private final ObjectMapper objectMapper;
 
     /**
      * 发送私聊消息
@@ -58,6 +64,9 @@ public class MessageService {
 
         log.info("私聊消息发送成功: messageId={}, senderId={}, receiverId={}",
                 savedMessage.getMessageId(), senderId, receiverId);
+
+        // 通过 WebSocket 通知接收者
+        sendWebSocketNotification(receiverId, savedMessage);
 
         return savedMessage;
     }
@@ -92,6 +101,9 @@ public class MessageService {
 
         log.info("群聊消息发送成功: messageId={}, senderId={}, groupId={}",
                 savedMessage.getMessageId(), senderId, groupId);
+
+        // 通过 WebSocket 通知所有群成员（除了发送者）
+        sendGroupWebSocketNotification(groupId, senderId, savedMessage);
 
         return savedMessage;
     }
@@ -129,6 +141,9 @@ public class MessageService {
 
         log.info("文件消息发送成功: messageId={}, senderId={}, receiverId={}, fileId={}",
                 savedMessage.getMessageId(), senderId, receiverId, fileInfo.getFileId());
+
+        // 通过 WebSocket 通知接收者
+        sendWebSocketNotification(receiverId, savedMessage);
 
         return savedMessage;
     }
@@ -168,6 +183,9 @@ public class MessageService {
 
         log.info("群聊文件消息发送成功: messageId={}, senderId={}, groupId={}, fileId={}",
                 savedMessage.getMessageId(), senderId, groupId, fileInfo.getFileId());
+
+        // 通过 WebSocket 通知所有群成员（除了发送者）
+        sendGroupWebSocketNotification(groupId, senderId, savedMessage);
 
         return savedMessage;
     }
@@ -370,5 +388,80 @@ public class MessageService {
      */
     private String generateMessageId() {
         return UUID.randomUUID().toString().replace("-", "").toUpperCase();
+    }
+
+    /**
+     * 通过 WebSocket 发送消息通知
+     */
+    private void sendWebSocketNotification(String userId, Message message) {
+        try {
+            Map<String, Object> notification = new HashMap<>();
+            notification.put("type", "message");
+
+            Map<String, Object> messageData = new HashMap<>();
+            messageData.put("id", message.getMessageId());
+            messageData.put("messageId", message.getMessageId());
+            messageData.put("senderId", message.getSenderId());
+            messageData.put("receiverId", message.getReceiverId());
+            messageData.put("content", message.getContent());
+            messageData.put("timestamp", message.getCreateTime());
+            messageData.put("type", message.getMessageType().name().toLowerCase());
+            messageData.put("messageType", message.getMessageType().name().toLowerCase());
+            messageData.put("status", message.getStatus().name().toLowerCase());
+            messageData.put("mediaUrl", message.getMediaUrl());
+            messageData.put("fileUrl", message.getMediaUrl());
+
+            notification.put("message", messageData);
+
+            String jsonMessage = objectMapper.writeValueAsString(notification);
+            webSocketHandler.sendMessageToUser(userId, jsonMessage);
+
+            log.debug("WebSocket消息通知已发送: userId={}, messageId={}", userId, message.getMessageId());
+        } catch (Exception e) {
+            log.error("发送WebSocket通知失败: userId={}, error={}", userId, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 通过 WebSocket 发送群聊消息通知
+     */
+    private void sendGroupWebSocketNotification(String groupId, String senderId, Message message) {
+        try {
+            // 获取群组所有成员
+            List<String> memberIds = groupService.getGroupMembers(groupId)
+                    .stream()
+                    .map(member -> member.getUserId())
+                    .filter(userId -> !userId.equals(senderId)) // 排除发送者
+                    .toList();
+
+            Map<String, Object> notification = new HashMap<>();
+            notification.put("type", "message");
+
+            Map<String, Object> messageData = new HashMap<>();
+            messageData.put("id", message.getMessageId());
+            messageData.put("messageId", message.getMessageId());
+            messageData.put("senderId", message.getSenderId());
+            messageData.put("groupId", message.getGroupId());
+            messageData.put("content", message.getContent());
+            messageData.put("timestamp", message.getCreateTime());
+            messageData.put("type", message.getMessageType().name().toLowerCase());
+            messageData.put("messageType", message.getMessageType().name().toLowerCase());
+            messageData.put("status", message.getStatus().name().toLowerCase());
+            messageData.put("mediaUrl", message.getMediaUrl());
+            messageData.put("fileUrl", message.getMediaUrl());
+
+            notification.put("message", messageData);
+
+            String jsonMessage = objectMapper.writeValueAsString(notification);
+
+            // 向所有群成员发送通知
+            for (String memberId : memberIds) {
+                webSocketHandler.sendMessageToUser(memberId, jsonMessage);
+            }
+
+            log.debug("群聊WebSocket消息通知已发送: groupId={}, memberCount={}", groupId, memberIds.size());
+        } catch (Exception e) {
+            log.error("发送群聊WebSocket通知失败: groupId={}, error={}", groupId, e.getMessage(), e);
+        }
     }
 }
