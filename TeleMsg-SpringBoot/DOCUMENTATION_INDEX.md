@@ -137,17 +137,17 @@
 
 | # | 功能模块 | API 端点 | 文档位置 |
 |---|---------|---------|--------|
-| 1 | 身份认证与授权 | `/auth` | [API](API_DOCUMENTATION_2.0.md#认证相关-api) / [结构](PROJECT_STRUCTURE_2.0.md#1-身份认证与授权) |
-| 2 | 用户管理 | `/users` | [API](API_DOCUMENTATION_2.0.md#用户管理-api) / [结构](PROJECT_STRUCTURE_2.0.md#2-用户管理) |
-| 3 | 群组管理 | `/groups` | [API](API_DOCUMENTATION_2.0.md#群组管理-api) / [结构](PROJECT_STRUCTURE_2.0.md#3-群组管理) |
-| 4 | 讨论空间 | `/discussion-spaces` | [API](API_DOCUMENTATION_2.0.md#讨论空间-api) / [结构](PROJECT_STRUCTURE_2.0.md#4-讨论空间) |
-| 5 | 私聊消息 | `/messages` | [API](API_DOCUMENTATION_2.0.md#消息管理-api) / [结构](PROJECT_STRUCTURE_2.0.md#5-私聊消息) |
-| 6 | 群聊消息 | `/messages/group` | [API](API_DOCUMENTATION_2.0.md#消息管理-api) / [结构](PROJECT_STRUCTURE_2.0.md#6-群聊消息) |
-| 7 | 文件管理 | `/files` | [API](API_DOCUMENTATION_2.0.md#文件管理-api) / [结构](PROJECT_STRUCTURE_2.0.md#7-文件管理minio-对象存储) |
-| 8 | 联系人管理 | `/contacts` | [API](API_DOCUMENTATION_2.0.md#联系人管理-api) / [结构](PROJECT_STRUCTURE_2.0.md#8-联系人管理) |
-| 9 | 视频通话 | `/calls` | [API](API_DOCUMENTATION_2.0.md#视频通话-api) / [结构](PROJECT_STRUCTURE_2.0.md#9-视频语音通话信令) |
-| 10 | 部门管理 | `/admin/departments` | [API](API_DOCUMENTATION_2.0.md#管理员-api) / [结构](PROJECT_STRUCTURE_2.0.md#10-部门管理仅管理员) |
-| 11 | 管理员功能 | `/admin` | [API](API_DOCUMENTATION_2.0.md#管理员-api) / [结构](PROJECT_STRUCTURE_2.0.md#11-管理员功能) |
+| 1 | 身份认证与授权 | `/auth` | [API](API_DOCUMENTATION_2.0.md#认证相关-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#1-身份认证与授权) |
+| 2 | 用户管理 | `/users` | [API](API_DOCUMENTATION_2.0.md#用户管理-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#2-用户管理) |
+| 3 | 群组管理 | `/groups` | [API](API_DOCUMENTATION_2.0.md#群组管理-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#3-群组管理) |
+| 4 | 讨论空间 | `/discussion-spaces` | [API](API_DOCUMENTATION_2.0.md#讨论空间-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#4-讨论空间) |
+| 5 | 私聊消息 | `/messages` | [API](API_DOCUMENTATION_2.0.md#消息管理-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#5-私聊消息) |
+| 6 | 群聊消息 | `/messages/group` | [API](API_DOCUMENTATION_2.0.md#消息管理-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#6-群聊消息) |
+| 7 | 文件管理 | `/files` | [API](API_DOCUMENTATION_2.0.md#文件管理-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#7-文件管理minio-对象存储) |
+| 8 | 联系人管理 | `/contacts` | [API](API_DOCUMENTATION_2.0.md#联系人管理-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#8-联系人管理) |
+| 9 | 视频通话 | `/calls` | [API](API_DOCUMENTATION_2.0.md#视频通话-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#9-视频语音通话信令) |
+| 10 | 部门管理 | `/admin/departments` | [API](API_DOCUMENTATION_2.0.md#管理员-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#10-部门管理仅管理员) |
+| 11 | 管理员功能 | `/admin` | [API](API_DOCUMENTATION_2.0.md#管理员-api) / [结构](SERVER_STRUCTURE_SUMMARY_2.0.md#11-管理员功能) |
 
 ---
 
@@ -243,12 +243,12 @@ curl -X POST http://localhost:8080/auth/login \
 
 | 问题 | 位置 |
 |------|------|
-| 如何修改 JWT Token 有效期？ | [PROJECT_STRUCTURE_2.0.md#q1](PROJECT_STRUCTURE_2.0.md#q1-如何修改-jwt-token-有效期) |
-| 如何扩展文件类型支持？ | [PROJECT_STRUCTURE_2.0.md#q2](PROJECT_STRUCTURE_2.0.md#q2-如何扩展支持更多文件类型) |
-| 如何增加文件大小限制？ | [PROJECT_STRUCTURE_2.0.md#q3](PROJECT_STRUCTURE_2.0.md#q3-如何增加-minio-文件大小限制) |
-| MinIO 连接失败怎么办？ | [PROJECT_STRUCTURE_2.0.md#q7](PROJECT_STRUCTURE_2.0.md#q7-minio-连接失败怎么办) |
-| 支持加密消息吗？ | [PROJECT_STRUCTURE_2.0.md#q9](PROJECT_STRUCTURE_2.0.md#q9-支持对消息进行加密吗) |
-| 如何处理离线消息？ | [PROJECT_STRUCTURE_2.0.md#q10](PROJECT_STRUCTURE_2.0.md#q10-如何处理离线消息) |
+| 如何修改 JWT Token 有效期？ | [PROJECT_STRUCTURE_2.0.md#q1](SERVER_STRUCTURE_SUMMARY_2.0.md#q1-如何修改-jwt-token-有效期) |
+| 如何扩展文件类型支持？ | [PROJECT_STRUCTURE_2.0.md#q2](SERVER_STRUCTURE_SUMMARY_2.0.md#q2-如何扩展支持更多文件类型) |
+| 如何增加文件大小限制？ | [PROJECT_STRUCTURE_2.0.md#q3](SERVER_STRUCTURE_SUMMARY_2.0.md#q3-如何增加-minio-文件大小限制) |
+| MinIO 连接失败怎么办？ | [PROJECT_STRUCTURE_2.0.md#q7](SERVER_STRUCTURE_SUMMARY_2.0.md#q7-minio-连接失败怎么办) |
+| 支持加密消息吗？ | [PROJECT_STRUCTURE_2.0.md#q9](SERVER_STRUCTURE_SUMMARY_2.0.md#q9-支持对消息进行加密吗) |
+| 如何处理离线消息？ | [PROJECT_STRUCTURE_2.0.md#q10](SERVER_STRUCTURE_SUMMARY_2.0.md#q10-如何处理离线消息) |
 
 更多问题见: **`PROJECT_STRUCTURE_2.0.md`** 的 [常见问题](#常见问题)
 
