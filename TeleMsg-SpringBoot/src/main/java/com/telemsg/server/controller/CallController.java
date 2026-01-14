@@ -1,6 +1,8 @@
 package com.telemsg.server.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telemsg.server.service.JwtService;
+import com.telemsg.server.websocket.TeleMsgWebSocketHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +27,8 @@ import java.util.UUID;
 public class CallController {
 
     private final JwtService jwtService;
+    private final TeleMsgWebSocketHandler webSocketHandler;
+    private final ObjectMapper objectMapper;
 
     /**
      * 发起通话
@@ -35,20 +39,24 @@ public class CallController {
         try {
             String callerId = extractUserIdFromToken(authHeader);
 
-            // 生成通话ID
-            String callId = UUID.randomUUID().toString();
+            // 生成通话ID - 使用统一格式: call_U{timestamp}_{callerId}
+            String callId = "call_U" + System.currentTimeMillis() + "_" + callerId;
 
-            // 这里应该实现通话信令处理逻辑
-            // 暂时返回模拟数据
+            // 构建信令数据
+            Map<String, Object> signalData = new HashMap<>();
+            signalData.put("type", "offer");
+            signalData.put("callerId", callerId);
+            signalData.put("contactId", request.getContactId());
+            signalData.put("isVoiceOnly", request.getIsVoiceOnly());
+
+            // 通过WebSocket向被叫方发送通话请求
+            sendCallNotification(request.getContactId(), callId, callerId, request.getIsVoiceOnly());
 
             Map<String, Object> response = new HashMap<>();
             response.put("callId", callId);
-            response.put("signalData", new HashMap<String, Object>() {{
-                put("type", "offer");
-                put("callerId", callerId);
-                put("contactId", request.getContactId());
-                put("isVoiceOnly", request.getIsVoiceOnly());
-            }});
+            response.put("signalData", signalData);
+
+            log.info("通话已发起: callId={}, callerId={}, contactId={}", callId, callerId, request.getContactId());
 
             return ResponseEntity.ok(response);
 
@@ -66,8 +74,8 @@ public class CallController {
                                       @RequestBody @Validated AnswerCallRequest request) {
         try {
             String userId = extractUserIdFromToken(authHeader);
-
-            // 这里应该实现接听通话的逻辑
+            // 通知发起者通话已被接听（需要从callId获取发起者信息，这里简化处理）
+            // 在实际应用中，应该维护一个callId到callerId的映射
 
             return ResponseEntity.ok(Map.of("message", "通话已接听", "callId", request.getCallId()));
 
@@ -110,6 +118,31 @@ public class CallController {
             }
         }
         throw new RuntimeException("无效的认证token");
+    }
+
+    /**
+     * 通过WebSocket发送通话通知
+     */
+    private void sendCallNotification(String recipientId, String callId, String callerId, Boolean isVoiceOnly) {
+        try {
+            Map<String, Object> notification = new HashMap<>();
+            notification.put("type", "call_incoming");
+
+            Map<String, Object> callData = new HashMap<>();
+            callData.put("callId", callId);
+            callData.put("callerId", callerId);
+            callData.put("isVoiceOnly", isVoiceOnly != null ? isVoiceOnly : false);
+            callData.put("timestamp", System.currentTimeMillis());
+
+            notification.put("call", callData);
+
+            String jsonMessage = objectMapper.writeValueAsString(notification);
+            webSocketHandler.sendMessageToUser(recipientId, jsonMessage);
+
+            log.info("通话通知已发送: recipientId={}, callId={}, callerId={}", recipientId, callId, callerId);
+        } catch (Exception e) {
+            log.error("发送通话通知失败: recipientId={}, error={}", recipientId, e.getMessage(), e);
+        }
     }
 
     // 请求对象

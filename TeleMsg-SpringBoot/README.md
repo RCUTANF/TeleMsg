@@ -263,7 +263,7 @@ GET /api/messages/group/{groupId}?page=0&size=20
 TeleMsg服务端兼容原有的MobileIMSDK客户端，连接参数：
 
 - **TCP端口**: 8901
-- **WebSocket端口**: 3000
+- **WebSocket端口**: 3001
 - **UDP端口**: 7901
 - **服务器地址**: localhost (开发环境)
 
@@ -306,7 +306,7 @@ docker run -d \
   --name telemsg-server \
   -p 8080:8080 \
   -p 8901:8901 \
-  -p 3000:3000 \
+  -p 3001:3001 \
   -p 7901:7901/udp \
   -e MYSQL_URL=jdbc:mysql://mysql:3306/telemsg_db \
   -e MYSQL_USERNAME=root \

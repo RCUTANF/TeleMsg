@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -15,13 +15,16 @@ import {
   Maximize2,
   Settings
 } from 'lucide-react';
+import { getMediasoupService } from '../services/mediasoup';
 
 interface VideoCallDialogProps {
   open: boolean;
   onClose: () => void;
   contactName: string;
   contactAvatar: string;
+  contactId: string;
   isVoiceOnly?: boolean;
+  callId?: string; // 通话房间ID
 }
 
 export function VideoCallDialog({ 
@@ -29,33 +32,101 @@ export function VideoCallDialog({
   onClose, 
   contactName, 
   contactAvatar,
-  isVoiceOnly = false 
+  contactId,
+  isVoiceOnly = false,
+  callId
 }: VideoCallDialogProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isConnecting, setIsConnecting] = useState(true);
 
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const mediasoupService = useRef(getMediasoupService('http://localhost:3001'));
+
   useEffect(() => {
     if (!open) return;
     
-    // 模拟连接
-    const connectTimer = setTimeout(() => {
-      setIsConnecting(false);
-    }, 2000);
+    let timer: NodeJS.Timeout;
+    let mounted = true;
 
-    // 通话计时
-    const timer = setInterval(() => {
-      setCallDuration(prev => prev + 1);
-    }, 1000);
+    // 初始化通话
+    const initCall = async () => {
+      try {
+        const userId = localStorage.getItem('user_id') || 'user_001';
+        // 使用传入的callId或生成一个统一的房间ID (按字母序排序确保双方ID一致)
+        const roomId = callId || `call_${[userId, contactId].sort().join('_')}`;
+
+        console.log(`🎬 Initializing call: roomId=${roomId}, userId=${userId}, contactId=${contactId}`);
+
+        // 加入房间
+        await mediasoupService.current.joinRoom(roomId, userId);
+
+        // 设置状态回调
+        mediasoupService.current.onConnectionStateChange((state) => {
+          if (state === 'connected') {
+            setIsConnecting(false);
+          } else if (state === 'disconnected') {
+            setIsConnecting(true);
+          }
+        });
+
+        // 设置远程流回调
+        mediasoupService.current.onRemoteStream((_userId, stream) => {
+          console.log('📺 Received remote stream:', stream.getTracks().map(t => t.kind));
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = stream;
+          }
+        });
+
+        // 🔥 添加短暂延迟，让远程流事件先处理，避免设备冲突
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 开始发送媒体流
+        const localStream = await mediasoupService.current.startProducing(
+          true, // audio
+          !isVoiceOnly // video
+        );
+
+        // 设置本地视频
+        if (localVideoRef.current && localStream) {
+          localVideoRef.current.srcObject = localStream;
+        }
+
+        setIsConnecting(false);
+
+        // 开始计时
+        timer = setInterval(() => {
+          if (mounted) {
+            setCallDuration(prev => prev + 1);
+          }
+        }, 1000);
+
+      } catch (error) {
+        console.error('Failed to initialize call:', error);
+        setIsConnecting(false);
+        // 显示错误提示
+        if (error instanceof Error) {
+          if (error.message.includes('Device in use')) {
+            console.error('❌ 摄像头或麦克风正在被其他应用使用');
+          }
+        }
+      }
+    };
+
+    initCall();
 
     return () => {
-      clearTimeout(connectTimer);
+      mounted = false;
       clearInterval(timer);
+      mediasoupService.current.leaveRoom();
       setCallDuration(0);
       setIsConnecting(true);
+      setIsMuted(false);
+      setIsVideoOff(false);
     };
-  }, [open]);
+  }, [open, contactId, isVoiceOnly]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -63,7 +134,20 @@ export function VideoCallDialog({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleEndCall = () => {
+  const handleToggleMute = () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    mediasoupService.current.toggleAudio(!newMuted);
+  };
+
+  const handleToggleVideo = () => {
+    const newVideoOff = !isVideoOff;
+    setIsVideoOff(newVideoOff);
+    mediasoupService.current.toggleVideo(!newVideoOff);
+  };
+
+  const handleEndCall = async () => {
+    await mediasoupService.current.leaveRoom();
     setCallDuration(0);
     setIsConnecting(true);
     onClose();
@@ -76,25 +160,23 @@ export function VideoCallDialog({
           {/* 视频区域 */}
           {!isVoiceOnly && !isVideoOff ? (
             <div className="w-full h-full flex items-center justify-center">
-              {/* 模拟视频画面 */}
-              <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
-                <div className="text-center">
-                  <Avatar className="h-32 w-32 mx-auto mb-4 ring-4 ring-white/10">
-                    <AvatarImage src={contactAvatar} alt={contactName} />
-                    <AvatarFallback className="text-4xl">{contactName[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="text-white text-xl font-semibold">{contactName}</div>
-                  <div className="text-gray-400 mt-2">
-                    {isConnecting ? '正在连接...' : formatDuration(callDuration)}
-                  </div>
-                </div>
-              </div>
+              {/* 远程视频 */}
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+              />
 
               {/* 本地视频预览 */}
               <div className="absolute top-4 right-4 w-48 h-36 bg-gray-800 rounded-lg overflow-hidden shadow-xl border border-gray-700">
-                <div className="w-full h-full bg-gradient-to-br from-blue-900 to-indigo-900 flex items-center justify-center">
-                  <div className="text-white text-sm">本地视频</div>
-                </div>
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover mirror"
+                />
               </div>
             </div>
           ) : (
@@ -140,7 +222,7 @@ export function VideoCallDialog({
                     size="icon"
                     variant={isVideoOff ? 'destructive' : 'secondary'}
                     className="h-12 w-12 rounded-full"
-                    onClick={() => setIsVideoOff(!isVideoOff)}
+                    onClick={handleToggleVideo}
                   >
                     {isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
                   </Button>
@@ -150,7 +232,7 @@ export function VideoCallDialog({
                   size="icon"
                   variant={isMuted ? 'destructive' : 'secondary'}
                   className="h-12 w-12 rounded-full"
-                  onClick={() => setIsMuted(!isMuted)}
+                  onClick={handleToggleMute}
                 >
                   {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                 </Button>

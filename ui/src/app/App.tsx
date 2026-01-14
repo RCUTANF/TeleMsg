@@ -7,6 +7,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { AdminPanel } from './components/AdminPanel';
 import { AdminCenter } from './components/AdminCenter';
 import { VideoCallDialog } from './components/VideoCallDialog';
+import { IncomingCallDialog } from './components/IncomingCallDialog';
 import { DiscussionSpaceDialog } from './components/DiscussionSpaceDialog';
 import { Button } from './components/ui/button';
 import { Settings, Shield, LogOut, Menu, X } from 'lucide-react';
@@ -72,6 +73,12 @@ function App() {
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [isVoiceCall, setIsVoiceCall] = useState(false);
+  const [currentCallId, setCurrentCallId] = useState<string | null>(null); // 当前通话的房间ID
+  const [incomingCall, setIncomingCall] = useState<{
+    callId: string;
+    callerId: string;
+    isVoiceOnly: boolean;
+  } | null>(null);
   const [createDiscussionSpaceOpen, setCreateDiscussionSpaceOpen] = useState(false);
   const [messagesByContact, setMessagesByContact] = useState<Record<string, Message[]>>({});
 
@@ -161,6 +168,10 @@ function App() {
         case 'contact_status':
           console.log('👤 Processing contact status update:', data);
           updateContactStatus(data.contactId, data.status);
+          break;
+        case 'call_incoming':
+          console.log('📞 Processing incoming call:', data);
+          handleIncomingCall(data.call);
           break;
         default:
           console.log('❓ Unknown message type:', data.type, data);
@@ -956,7 +967,8 @@ function App() {
   const handleStartVideoCall = async () => {
     if (!selectedContactId) return;
     try {
-      await apiService.initiateVideoCall(selectedContactId, false);
+      const response = await apiService.initiateVideoCall(selectedContactId, false);
+      setCurrentCallId(response.callId); // 保存callId
       setIsVoiceCall(false);
       setVideoCallOpen(true);
     } catch (error) {
@@ -968,13 +980,44 @@ function App() {
   const handleStartVoiceCall = async () => {
     if (!selectedContactId) return;
     try {
-      await apiService.initiateVideoCall(selectedContactId, true);
+      const response = await apiService.initiateVideoCall(selectedContactId, true);
+      setCurrentCallId(response.callId); // 保存callId
       setIsVoiceCall(true);
       setVideoCallOpen(true);
     } catch (error) {
       console.error('Failed to start voice call:', error);
     }
   };
+
+  // 处理来电通知
+  const handleIncomingCall = useCallback((callData: {
+    callId: string;
+    callerId: string;
+    isVoiceOnly: boolean;
+  }) => {
+    console.log('📞 Incoming call received:', callData);
+    setIncomingCall(callData);
+    // 播放铃声等
+  }, []);
+
+  // 接听来电
+  const handleAnswerCall = useCallback(() => {
+    if (!incomingCall) return;
+    console.log('✅ Answering call:', incomingCall);
+    setCurrentCallId(incomingCall.callId); // 使用来电的callId
+    setIsVoiceCall(incomingCall.isVoiceOnly);
+    setSelectedContactId(incomingCall.callerId);
+    setVideoCallOpen(true);
+    setIncomingCall(null);
+  }, [incomingCall]);
+
+  // 拒绝来电
+  const handleRejectCall = useCallback(() => {
+    if (!incomingCall) return;
+    console.log('❌ Rejecting call:', incomingCall);
+    // TODO: 通知对方呼叫被拒绝
+    setIncomingCall(null);
+  }, [incomingCall]);
 
   const selectedContact = contacts.find(c => c.id === selectedContactId);
   // 如果选择了讨论空间，使用讨论空间的消息；否则使用联系人的消息
@@ -1147,10 +1190,27 @@ function App() {
       {selectedContact && (
         <VideoCallDialog
           open={videoCallOpen}
-          onClose={() => setVideoCallOpen(false)}
+          onClose={() => {
+            setVideoCallOpen(false);
+            setCurrentCallId(null); // 清空callId
+          }}
           contactName={selectedContact.name}
           contactAvatar={selectedContact.avatar}
+          contactId={selectedContact.id}
           isVoiceOnly={isVoiceCall}
+          callId={currentCallId || undefined}
+        />
+      )}
+
+      {/* 来电通知 */}
+      {incomingCall && (
+        <IncomingCallDialog
+          open={!!incomingCall}
+          onAnswer={handleAnswerCall}
+          onReject={handleRejectCall}
+          callerName={contacts.find(c => c.id === incomingCall.callerId)?.name || '未知用户'}
+          callerAvatar={contacts.find(c => c.id === incomingCall.callerId)?.avatar || ''}
+          isVoiceOnly={incomingCall.isVoiceOnly}
         />
       )}
 

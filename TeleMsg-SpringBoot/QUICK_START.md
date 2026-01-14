@@ -128,7 +128,7 @@ ConfigEntity.serverTCPPort = 8901;
 
 - **HTTP API**: 8080 (REST接口)
 - **TCP IM**: 8901 (原MobileIMSDK客户端连接)
-- **WebSocket**: 3000 (Web客户端连接)
+- **WebSocket**: 3001 (Web客户端连接)
 - **UDP**: 7901 (UDP协议连接)
 
 ## 📊 监控和管理
