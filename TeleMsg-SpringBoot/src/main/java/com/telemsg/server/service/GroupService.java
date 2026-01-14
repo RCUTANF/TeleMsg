@@ -291,4 +291,171 @@ public class GroupService {
 
         return groupId;
     }
+
+    // ==========================================
+    // 讨论空间相关方法
+    // ==========================================
+
+    /**
+     * 创建讨论空间
+     * 讨论空间本质上是一个特殊的群组，有父群组ID
+     */
+    @Transactional
+    public Group createDiscussionSpace(String name, String parentGroupId, String creatorId, List<String> memberIds, String description) {
+        // 验证父群组是否存在
+        Optional<Group> parentGroupOpt = groupRepository.findByGroupId(parentGroupId);
+        if (parentGroupOpt.isEmpty()) {
+            throw new RuntimeException("父群组不存在");
+        }
+
+        // 验证创建者是否为父群组成员
+        if (!isGroupMember(parentGroupId, creatorId)) {
+            throw new RuntimeException("只有父群组成员才能创建讨论空间");
+        }
+
+        // 创建讨论空间（本质上是一个特殊的群组）
+        Group discussionSpace = new Group();
+        discussionSpace.setGroupId(generateGroupId());
+        discussionSpace.setGroupName(name);
+        discussionSpace.setDescription(description);
+        discussionSpace.setOwnerId(creatorId);
+        discussionSpace.setParentGroupId(parentGroupId);  // 设置父群组ID
+        discussionSpace.setType(Group.GroupType.NORMAL);
+
+        Group savedSpace = groupRepository.save(discussionSpace);
+
+        // 添加创建者为群组成员
+        GroupMember creatorMember = new GroupMember();
+        creatorMember.setGroupId(savedSpace.getGroupId());
+        creatorMember.setUserId(creatorId);
+        creatorMember.setRole(GroupMember.MemberRole.OWNER);
+        groupMemberRepository.save(creatorMember);
+
+        // 添加其他成员
+        if (memberIds != null) {
+            for (String memberId : memberIds) {
+                if (!memberId.equals(creatorId) && isGroupMember(parentGroupId, memberId)) {
+                    GroupMember member = new GroupMember();
+                    member.setGroupId(savedSpace.getGroupId());
+                    member.setUserId(memberId);
+                    member.setRole(GroupMember.MemberRole.MEMBER);
+                    groupMemberRepository.save(member);
+                }
+            }
+        }
+
+        log.info("讨论空间创建成功: spaceId={}, name={}, parentGroupId={}, creatorId={}",
+                savedSpace.getGroupId(), name, parentGroupId, creatorId);
+
+        return savedSpace;
+    }
+
+    /**
+     * 获取某个群组的所有讨论空间
+     */
+    public List<Group> getDiscussionSpacesByParentGroup(String parentGroupId) {
+        return groupRepository.findByParentGroupIdAndDeletedFalse(parentGroupId);
+    }
+
+    /**
+     * 获取用户有权访问的所有讨论空间
+     * （用户是讨论空间的成员）
+     */
+    public List<Group> getUserDiscussionSpaces(String userId) {
+        // 获取用户加入的所有群组
+        List<GroupMember> userGroups = groupMemberRepository.findByUserId(userId);
+
+        // 过滤出讨论空间（有父群组ID的）
+        return userGroups.stream()
+            .map(member -> groupRepository.findByGroupId(member.getGroupId()))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .filter(group -> group.getParentGroupId() != null && !group.getDeleted())
+            .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * 向讨论空间添加成员
+     */
+    @Transactional
+    public void addDiscussionSpaceMembers(String spaceId, String operatorId, List<String> memberIds) {
+        // 验证讨论空间是否存在
+        Optional<Group> spaceOpt = groupRepository.findByGroupId(spaceId);
+        if (spaceOpt.isEmpty()) {
+            throw new RuntimeException("讨论空间不存在");
+        }
+
+        Group space = spaceOpt.get();
+
+        // 验证是否为讨论空间
+        if (space.getParentGroupId() == null) {
+            throw new RuntimeException("该群组不是讨论空间");
+        }
+
+        // 验证操作者权限（是否为讨论空间的管理员或群主）
+        if (!hasAdminPermission(spaceId, operatorId)) {
+            throw new RuntimeException("权限不足，只有管理员可以添加成员");
+        }
+
+        // 验证新成员是否为父群组成员
+        String parentGroupId = space.getParentGroupId();
+
+        for (String memberId : memberIds) {
+            // 检查是否为父群组成员
+            if (!isGroupMember(parentGroupId, memberId)) {
+                log.warn("用户 {} 不是父群组成员，跳过添加到讨论空间", memberId);
+                continue;
+            }
+
+            // 检查是否已经是讨论空间成员
+            if (isGroupMember(spaceId, memberId)) {
+                log.warn("用户 {} 已经是讨论空间成员，跳过", memberId);
+                continue;
+            }
+
+            // 添加成员
+            GroupMember member = new GroupMember();
+            member.setGroupId(spaceId);
+            member.setUserId(memberId);
+            member.setRole(GroupMember.MemberRole.MEMBER);
+            groupMemberRepository.save(member);
+
+            log.info("用户 {} 已添加到讨论空间 {}", memberId, spaceId);
+        }
+    }
+
+    /**
+     * 从讨论空间移除成员
+     */
+    @Transactional
+    public void removeDiscussionSpaceMember(String spaceId, String operatorId, String memberId) {
+        // 验证讨论空间是否存在
+        Optional<Group> spaceOpt = groupRepository.findByGroupId(spaceId);
+        if (spaceOpt.isEmpty()) {
+            throw new RuntimeException("讨论空间不存在");
+        }
+
+        Group space = spaceOpt.get();
+
+        // 验证是否为讨论空间
+        if (space.getParentGroupId() == null) {
+            throw new RuntimeException("该群组不是讨论空间");
+        }
+
+        // 验证操作者权限
+        if (!hasAdminPermission(spaceId, operatorId)) {
+            throw new RuntimeException("权限不足，只有管理员可以移除成员");
+        }
+
+        // 不能移除群主
+        Optional<GroupMember> memberOpt = groupMemberRepository.findByGroupIdAndUserId(spaceId, memberId);
+        if (memberOpt.isPresent() && memberOpt.get().getRole() == GroupMember.MemberRole.OWNER) {
+            throw new RuntimeException("不能移除讨论空间的创建者");
+        }
+
+        // 移除成员
+        groupMemberRepository.deleteByGroupIdAndUserId(spaceId, memberId);
+
+        log.info("用户 {} 已从讨论空间 {} 移除", memberId, spaceId);
+    }
 }

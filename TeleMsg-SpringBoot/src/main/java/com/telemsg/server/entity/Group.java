@@ -33,6 +33,14 @@ public class Group {
     @Column(nullable = false, length = 50)
     private String ownerId;
 
+    /**
+     * 父群组ID - 用于讨论空间
+     * 如果为空，则表示是普通群聊或父群聊
+     * 如果有值，则表示是某个群聊的讨论空间
+     */
+    @Column(length = 50)
+    private String parentGroupId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private GroupType type = GroupType.NORMAL;
