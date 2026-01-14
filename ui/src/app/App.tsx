@@ -182,17 +182,54 @@ function App() {
     }
   }, [selectedContactId, contacts, loadDiscussionSpaces]);
 
+  // 当选择讨论空间时，加载该讨论空间的消息
+  useEffect(() => {
+    if (selectedDiscussionSpaceId) {
+      loadDiscussionSpaceMessages(selectedDiscussionSpaceId);
+    }
+  }, [selectedDiscussionSpaceId]);
+
+  // 加载讨论空间的消息
+  const loadDiscussionSpaceMessages = async (spaceId: string) => {
+    try {
+      console.log('加载讨论空间消息:', spaceId);
+      // 讨论空间也是一个群聊，使用群消息接口
+      const messagesData = await apiService.getGroupMessages(spaceId);
+
+      setMessagesByDiscussionSpace(prev => ({
+        ...prev,
+        [spaceId]: messagesData
+      }));
+
+      console.log('讨论空间消息加载成功:', messagesData.length, '条');
+    } catch (error) {
+      console.error('Failed to load discussion space messages:', error);
+    }
+  };
+
   // ==========================================
   // 讨论空间处理函数
   // ==========================================
 
 
   const handleCreateDiscussionSpace = async (name: string, groupId: string, members: string[], description?: string) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      console.error('当前用户未登录');
+      toast.error('请先登录');
+      return;
+    }
+
+    console.log('Creating discussion space:', { name, groupId, members, creatorId: currentUser.id, description });
+
+    if (!name || !groupId || !members || members.length === 0) {
+      console.error('创建讨论空间参数不完整:', { name, groupId, members });
+      toast.error('参数不完整，请检查输入');
+      return;
+    }
 
     try {
       // 调用 API 创建讨论空间
-      const newSpace = await apiService.createDiscussionSpace(name, groupId, members, description);
+      const newSpace = await apiService.createDiscussionSpace(name, groupId, members, currentUser.id, description);
 
       // 更新本地状态
       setDiscussionSpaces([...discussionSpaces, newSpace]);
@@ -210,7 +247,8 @@ function App() {
       toast.success(`讨论空间 "${name}" 已创建`);
     } catch (error) {
       console.error('Failed to create discussion space:', error);
-      toast.error('创建讨论空间失败，请重试');
+      const errorMessage = error instanceof Error ? error.message : '创建讨论空间失败，请重试';
+      toast.error(errorMessage);
     }
   };
 
@@ -257,9 +295,11 @@ function App() {
   };
 
   const handleAddDiscussionSpaceMember = async (spaceId: string, newMembers: string[]) => {
+    if (!currentUser) return;
+
     try {
       // 调用 API 添加成员
-      const updatedSpace = await apiService.addDiscussionSpaceMembers(spaceId, newMembers);
+      const updatedSpace = await apiService.addDiscussionSpaceMembers(spaceId, currentUser.id, newMembers);
 
       // 更新本地状态
       setDiscussionSpaces(discussionSpaces.map(space =>
@@ -291,9 +331,11 @@ function App() {
   };
 
   const handleRemoveDiscussionSpaceMember = async (spaceId: string, memberId: string) => {
+    if (!currentUser) return;
+
     try {
       // 调用 API 移除成员
-      const updatedSpace = await apiService.removeDiscussionSpaceMember(spaceId, memberId);
+      const updatedSpace = await apiService.removeDiscussionSpaceMember(spaceId, currentUser.id, memberId);
 
       // 更新本地状态
       setDiscussionSpaces(discussionSpaces.map(space =>
@@ -342,7 +384,8 @@ function App() {
             status: 'online' as const,
             isGroup: true,
             memberCount: members.length,
-            role: member.role.toLowerCase()
+            role: member.role.toLowerCase(),
+            parentGroupId: groupInfo.parentGroupId // Add parentGroupId to identify discussion spaces
           };
         } catch (error) {
           console.error(`Failed to load group ${member.groupId}:`, error);
@@ -539,18 +582,33 @@ function App() {
 
     if (!conversationId) return;
 
-    // 如果是当前聊天窗口的消息，添加到对应的消息列表
-    if (conversationId === selectedContactId) {
-      setMessagesByContact(prev => ({
-        ...prev,
-        [conversationId]: [...(prev[conversationId] || []), message]
-      }));
-    }
+    // 检查这个消息是否属于某个讨论空间
+    const isDiscussionSpace = discussionSpaces.some(space => space.id === conversationId);
 
-    // 更新联系人的最后消息（只有当消息不是当前用户发送的时候才更新）
-    if (message.senderId !== currentUser?.id) {
-      const shouldIncrement = conversationId !== selectedContactId;
-      await updateContactLastMessage(conversationId, message.content, shouldIncrement, !!message.groupId);
+    if (isDiscussionSpace) {
+      // 讨论空间的消息
+      if (conversationId === selectedDiscussionSpaceId) {
+        // 如果正在查看这个讨论空间，添加到讨论空间的消息列表
+        setMessagesByDiscussionSpace(prev => ({
+          ...prev,
+          [conversationId]: [...(prev[conversationId] || []), message]
+        }));
+      }
+      // 注意：讨论空间的消息不更新父群聊的最后消息
+    } else {
+      // 主群聊或私聊消息
+      if (conversationId === selectedContactId) {
+        setMessagesByContact(prev => ({
+          ...prev,
+          [conversationId]: [...(prev[conversationId] || []), message]
+        }));
+      }
+
+      // 更新联系人的最后消息（只有当消息不是当前用户发送的时候才更新）
+      if (message.senderId !== currentUser?.id) {
+        const shouldIncrement = conversationId !== selectedContactId;
+        await updateContactLastMessage(conversationId, message.content, shouldIncrement, !!message.groupId);
+      }
     }
   };
 
@@ -708,28 +766,41 @@ function App() {
     const selectedContact = contacts.find(c => c.id === selectedContactId);
     const isGroupChat = selectedContact?.isGroup || false;
 
+    // 确定实际的接收者ID：如果在讨论空间中，使用讨论空间ID；否则使用联系人ID
+    const actualReceiverId = selectedDiscussionSpaceId || selectedContactId;
+
+    console.log('发送消息:', {
+      selectedContactId,
+      selectedDiscussionSpaceId,
+      actualReceiverId,
+      isGroupChat,
+      content
+    });
+
     try {
       let messageData;
       if (file) {
         // 发送文件消息
-        if (isGroupChat) {
-          messageData = await apiService.sendGroupFileMessage(currentUser.id, selectedContactId, file, content);
+        if (isGroupChat || selectedDiscussionSpaceId) {
+          // 群聊或讨论空间都使用群消息接口
+          messageData = await apiService.sendGroupFileMessage(currentUser.id, actualReceiverId, file, content);
         } else {
-          messageData = await apiService.sendFileMessage(selectedContactId, file, content);
+          messageData = await apiService.sendFileMessage(actualReceiverId, file, content);
         }
       } else {
         // 发送文本消息
-        if (isGroupChat) {
-          messageData = await apiService.sendGroupMessage(currentUser.id, selectedContactId, content, type);
+        if (isGroupChat || selectedDiscussionSpaceId) {
+          // 群聊或讨论空间都使用群消息接口
+          messageData = await apiService.sendGroupMessage(currentUser.id, actualReceiverId, content, type);
         } else {
-          messageData = await apiService.sendMessage(selectedContactId, content, type);
+          messageData = await apiService.sendMessage(actualReceiverId, content, type);
         }
       }
 
       const newMessage: Message = {
         id: messageData.id || Date.now().toString(),
         senderId: currentUser.id,
-        receiverId: isGroupChat ? undefined : selectedContactId,
+        receiverId: (isGroupChat || selectedDiscussionSpaceId) ? undefined : actualReceiverId,
         content: messageData.content || content,
         timestamp: new Date(messageData.timestamp || new Date()),
         type: messageData.type || type,
@@ -760,19 +831,24 @@ function App() {
             }));
         }
 
-      updateContactLastMessage(
-        selectedContactId,
-        file ? `[${file.type.startsWith('image/') ? '图片' : '文件'}] ${file.name}` : content,
-        false,
-        isGroupChat
-      );
+      // 更新最后一条消息（只在主群聊或私聊时更新，讨论空间不更新父群聊的最后消息）
+      if (!selectedDiscussionSpaceId) {
+        updateContactLastMessage(
+          selectedContactId,
+          file ? `[${file.type.startsWith('image/') ? '图片' : '文件'}] ${file.name}` : content,
+          false,
+          isGroupChat
+        );
+      }
 
       // 通过 WebSocket 发送
       apiService.sendWebSocketMessage({
         type: 'message',
         message: newMessage,
-        recipientId: selectedContactId,
+        recipientId: actualReceiverId,  // 使用实际的接收者ID
       });
+
+      console.log('消息发送成功:', newMessage);
     } catch (error) {
       console.error('Failed to send message:', error);
       toast.error('发送消息失败: ' + (error instanceof Error ? error.message : '未知错误'));
@@ -1008,7 +1084,7 @@ function App() {
       )}
 
       {/* 讨论空间创建对话框 */}
-      {selectedContact && selectedContact.isGroup && (
+      {selectedContact && selectedContact.isGroup && !selectedContact.parentGroupId && (
         <DiscussionSpaceDialog
           open={createDiscussionSpaceOpen}
           onClose={() => setCreateDiscussionSpaceOpen(false)}

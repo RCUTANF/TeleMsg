@@ -22,6 +22,7 @@ export interface Contact {
   lastMessageTime?: Date;
   unreadCount?: number;
   lastSeen?: string;
+  parentGroupId?: string; // For discussion spaces: parent group ID
 }
 
 export interface Message {
@@ -215,6 +216,11 @@ class ApiService {
     });
   }
 
+  async getUserById(userId: string): Promise<User> {
+    const response = await this.request<any>(`/users/${userId}`);
+    return response.data || response;
+  }
+
   async getContacts(): Promise<Contact[]> {
     return this.request<Contact[]>('/contacts');
   }
@@ -260,7 +266,7 @@ class ApiService {
     }));
 
     // 按时间正序排序（早的消息在上面）
-    return mappedMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    return mappedMessages.sort((a: { timestamp: { getTime: () => number; }; }, b: { timestamp: { getTime: () => number; }; }) => a.timestamp.getTime() - b.timestamp.getTime());
   }
 
   async sendMessage(
@@ -545,12 +551,22 @@ class ApiService {
     name: string,
     groupId: string,
     members: string[],
+    creatorId: string,
     description?: string
   ): Promise<DiscussionSpace> {
+    console.log('Creating discussion space with params:', { name, groupId, members, creatorId, description });
+
+    if (!name || !groupId || !creatorId || !members || members.length === 0) {
+      throw new Error('创建讨论空间参数不完整');
+    }
+
     const response = await this.request<any>('/discussion-spaces', {
       method: 'POST',
-      body: JSON.stringify({ name, groupId, members, description }),
+      body: JSON.stringify({ name, groupId, members, creatorId, description }),
     });
+
+    console.log('Discussion space created, response:', response);
+
     const space = response.data || response;
     return {
       ...space,
@@ -573,16 +589,16 @@ class ApiService {
     };
   }
 
-  async deleteDiscussionSpace(spaceId: string): Promise<void> {
-    await this.request(`/discussion-spaces/${spaceId}`, {
+  async deleteDiscussionSpace(spaceId: string, ownerId: string): Promise<void> {
+    await this.request(`/discussion-spaces/${spaceId}?ownerId=${ownerId}`, {
       method: 'DELETE',
     });
   }
 
-  async addDiscussionSpaceMembers(spaceId: string, memberIds: string[]): Promise<DiscussionSpace> {
+  async addDiscussionSpaceMembers(spaceId: string, operatorId: string, memberIds: string[]): Promise<DiscussionSpace> {
     const response = await this.request<any>(`/discussion-spaces/${spaceId}/members`, {
       method: 'POST',
-      body: JSON.stringify({ memberIds }),
+      body: JSON.stringify({ operatorId, memberIds }),
     });
     const space = response.data || response;
     return {
@@ -591,8 +607,8 @@ class ApiService {
     };
   }
 
-  async removeDiscussionSpaceMember(spaceId: string, memberId: string): Promise<DiscussionSpace> {
-    const response = await this.request<any>(`/discussion-spaces/${spaceId}/members/${memberId}`, {
+  async removeDiscussionSpaceMember(spaceId: string, operatorId: string, memberId: string): Promise<DiscussionSpace> {
+    const response = await this.request<any>(`/discussion-spaces/${spaceId}/members/${memberId}?operatorId=${operatorId}`, {
       method: 'DELETE',
     });
     const space = response.data || response;

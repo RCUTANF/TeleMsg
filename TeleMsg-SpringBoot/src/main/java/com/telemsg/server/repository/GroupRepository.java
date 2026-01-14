@@ -62,4 +62,15 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
     @Modifying
     @Query("UPDATE Group g SET g.deleted = true, g.updateTime = :updateTime WHERE g.groupId = :groupId")
     int softDeleteGroup(String groupId, LocalDateTime updateTime);
+
+    /**
+     * 根据父群组ID查找所有讨论空间
+     */
+    List<Group> findByParentGroupIdAndDeletedFalse(String parentGroupId);
+
+    /**
+     * 查找所有讨论空间（有父群组ID的群组）
+     */
+    @Query("SELECT g FROM Group g WHERE g.parentGroupId IS NOT NULL AND g.deleted = false")
+    List<Group> findAllDiscussionSpaces();
 }

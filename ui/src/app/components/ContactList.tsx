@@ -21,6 +21,7 @@ export interface Contact {
   isGroup?: boolean;
   memberCount?: number;
   role?: string; // For group chats: 'owner', 'admin', 'member'
+  parentGroupId?: string; // For discussion spaces: parent group ID
 }
 
 export interface Message {
@@ -67,13 +68,18 @@ export function ContactList({
   };
 
   const allContacts = contacts.filter(c => !c.isGroup); // 非群聊联系人
-  const allGroups = contacts.filter(c => c.isGroup); // 群聊
+  const allGroups = contacts.filter(c => c.isGroup && !c.parentGroupId); // 群聊（不包括讨论空间）
   // const recentChats = contacts.filter(c => c.lastMessage);
-  const recentChats = contacts.filter(c => typeof c.lastMessage === 'string' && c.lastMessage.trim() !== ''); // 只显示有聊天记录的联系人
+  const recentChats = contacts.filter(c => typeof c.lastMessage === 'string' && c.lastMessage.trim() !== '' && !c.parentGroupId); // 只显示有聊天记录的联系人，不包括讨论空间
 
 
   // 搜索逻辑
   const filteredContacts = contacts.filter(contact => {
+    // 排除讨论空间（有 parentGroupId 的群聊）
+    if (contact.parentGroupId) {
+      return false;
+    }
+
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
 

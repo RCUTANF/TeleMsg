@@ -229,6 +229,7 @@ public class GroupController {
         response.setDescription(group.getDescription());
         response.setAvatar(group.getAvatar());
         response.setOwnerId(group.getOwnerId());
+        response.setParentGroupId(group.getParentGroupId()); // 设置父群组ID
         response.setType(group.getType().name());
         response.setMaxMembers(group.getMaxMembers());
         response.setCreateTime(group.getCreateTime());
@@ -307,6 +308,7 @@ public class GroupController {
         private String description;
         private String avatar;
         private String ownerId;
+        private String parentGroupId; // 父群组ID，用于标识讨论空间
         private String type;
         private Integer maxMembers;
         private java.time.LocalDateTime createTime;
@@ -326,6 +328,9 @@ public class GroupController {
 
         public String getOwnerId() { return ownerId; }
         public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
+
+        public String getParentGroupId() { return parentGroupId; }
+        public void setParentGroupId(String parentGroupId) { this.parentGroupId = parentGroupId; }
 
         public String getType() { return type; }
         public void setType(String type) { this.type = type; }

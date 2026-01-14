@@ -90,8 +90,27 @@ export function ChatArea({
   const [showAllReferences, setShowAllReferences] = useState(false);
   const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
   const [selectedNewMembers, setSelectedNewMembers] = useState<string[]>([]);
+  const [currentUserInfo, setCurrentUserInfo] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load current user information once
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const user = await apiService.getUserById(currentUserId);
+        setCurrentUserInfo({
+          id: user.id,
+          name: user.name || user.username,
+          avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
+        });
+      } catch (error) {
+        console.error('Failed to load current user info:', error);
+      }
+    };
+
+    loadCurrentUser();
+  }, [currentUserId]);
 
   // 当主群消息更新时，同步到讨论空间的可引用消息范围
   useEffect(() => {
@@ -264,7 +283,10 @@ export function ChatArea({
             <span className="text-xs text-gray-500">空间成员：</span>
             <div className="flex gap-4">
               {discussionSpaces.find(space => space.id === selectedDiscussionSpaceId)?.members.map((memberId) => {
-                const member = contacts.find(c => c.id === memberId);
+                // If it's the current user, use currentUserInfo; otherwise find in contacts
+                const member = memberId === currentUserId
+                  ? currentUserInfo
+                  : contacts.find(c => c.id === memberId);
                 const isCurrentUser = memberId === currentUserId;
                 return (
                   <div
@@ -318,6 +340,23 @@ export function ChatArea({
         <div className="space-y-4">
           {messages.map((message) => {
             const isCurrentUser = message.senderId === currentUserId;
+            // For group chats and discussion spaces, get the sender info
+            let sender = null;
+            let displayName = '';
+            let displayAvatar = '';
+
+            if (isCurrentUser) {
+              displayName = 'Me';
+              displayAvatar = currentUserInfo?.avatar || '';
+            } else if (contact.isGroup) {
+              sender = contacts.find(c => c.id === message.senderId);
+              displayName = sender?.name || contact.name;
+              displayAvatar = sender?.avatar || contact.avatar;
+            } else {
+              displayName = contact.name;
+              displayAvatar = contact.avatar;
+            }
+
             return (
               <div
                 key={message.id}
@@ -325,14 +364,18 @@ export function ChatArea({
               >
                 <Avatar className="h-8 w-8">
                   <AvatarImage 
-                    src={isCurrentUser ? '' : contact.avatar} 
-                    alt={isCurrentUser ? 'You' : contact.name} 
+                    src={displayAvatar}
+                    alt={displayName}
                   />
                   <AvatarFallback>
-                    {isCurrentUser ? 'Me' : contact.name[0]}
+                    {displayName[0]}
                   </AvatarFallback>
                 </Avatar>
                 <div className={`flex flex-col gap-1 max-w-md ${isCurrentUser ? 'items-end' : ''}`}>
+                  {/* Show sender name in group chats */}
+                  {!isCurrentUser && contact.isGroup && (
+                    <span className="text-xs text-gray-500 ml-1">{displayName}</span>
+                  )}
                   {message.type === 'text' && (
                     <div
                       className={`px-4 py-2 rounded-2xl ${
@@ -552,7 +595,9 @@ export function ChatArea({
                       // 构建引用消息的格式
                       let referenceText = '';
                       selectedReferenceMessages.forEach((message) => {
-                        const sender = contacts.find(c => c.id === message.senderId);
+                        const sender = message.senderId === currentUserId
+                          ? currentUserInfo
+                          : contacts.find(c => c.id === message.senderId);
                         referenceText += `引用 ${sender?.name || '未知用户'}：\n${message.content}\n\n`;
                       });
                       // 直接发送引用消息，而不是先添加到输入框
@@ -583,7 +628,9 @@ export function ChatArea({
               <div className="space-y-3">
                 {referenceableMessages.length > 0 ? (
                   referenceableMessages.map((message) => {
-                    const sender = contacts.find(c => c.id === message.senderId);
+                    const sender = message.senderId === currentUserId
+                      ? currentUserInfo
+                      : contacts.find(c => c.id === message.senderId);
                     const isSelected = selectedReferenceMessages.some(m => m.id === message.id);
                     return (
                       <div
@@ -682,13 +729,14 @@ export function ChatArea({
               <div className="space-y-3">
                 {contacts.length > 0 ? (
                   contacts.map((contact) => {
-                    // 排除已经在讨论空间中的成员和群聊
+                    // 排除已经在讨论空间中的成员、群聊和讨论空间本身
                     const space = discussionSpaces.find(s => s.id === selectedDiscussionSpaceId);
                     const isAlreadyMember = space?.members.includes(contact.id) || false;
                     const isSelected = selectedNewMembers.includes(contact.id);
                     const isGroup = contact.isGroup;
+                    const isDiscussionSpace = contact.parentGroupId; // 讨论空间有 parentGroupId
 
-                    if (isAlreadyMember || isGroup) return null;
+                    if (isAlreadyMember || isGroup || isDiscussionSpace) return null;
 
                     return (
                       <div

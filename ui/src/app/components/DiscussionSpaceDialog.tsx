@@ -33,16 +33,49 @@ export function DiscussionSpaceDialog({
 
   // 加载群组成员
   useEffect(() => {
-    if (open && group.id) {
+    if (open && group?.id) {
       loadGroupMembers();
     }
-  }, [open, group.id]);
+  }, [open, group?.id]);
 
   const loadGroupMembers = async () => {
+    if (!group?.id) {
+      console.error('Group ID is not defined');
+      setGroupMembers([]);
+      return;
+    }
+
     setLoading(true);
     try {
-      const members = await apiService.getGroupMembers(group.id);
-      setGroupMembers(members);
+      // 获取群组成员列表（只有 userId 等基本信息）
+      const memberList = await apiService.getGroupMembers(group.id);
+      console.log('Group members from API:', memberList);
+
+      // 获取所有联系人列表以匹配用户信息
+      const allContacts = await apiService.getContacts();
+
+      // 将成员列表转换为完整的用户信息
+      const fullMemberInfo: User[] = memberList
+        .map((member: any) => {
+          // 尝试从联系人列表中找到对应的用户
+          const userInfo = allContacts.find((c: any) => c.id === member.userId);
+
+          if (userInfo) {
+            return userInfo;
+          }
+
+          // 如果找不到，使用基本信息创建一个临时用户对象
+          return {
+            id: member.userId,
+            name: member.nickname || member.userId,
+            username: member.userId,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.userId}`,
+          };
+        })
+        .filter((user): user is User => user !== null);
+
+      console.log('Processed members with full info:', fullMemberInfo);
+      setGroupMembers(fullMemberInfo);
 
       // 默认选中当前用户
       if (!selectedMembers.includes(currentUserId)) {
@@ -59,6 +92,10 @@ export function DiscussionSpaceDialog({
 
   const handleSubmit = () => {
     if (!name.trim()) return;
+    if (!group?.id) {
+      console.error('Group is not defined');
+      return;
+    }
     onCreate(name, group.id, selectedMembers, description);
     onClose();
     // 重置表单
@@ -108,27 +145,33 @@ export function DiscussionSpaceDialog({
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                 <span className="ml-2 text-sm text-gray-500">加载群组成员...</span>
               </div>
-            ) : groupMembers.length > 0 ? (
+            ) : groupMembers && groupMembers.length > 0 ? (
               <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-2">
-                {groupMembers.map(member => (
-                  <div key={member.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
-                    <Checkbox
-                      id={`member-${member.id}`}
-                      checked={selectedMembers.includes(member.id)}
-                      onCheckedChange={() => handleMemberToggle(member.id)}
-                    />
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={member.avatar} alt={member.name} />
-                      <AvatarFallback>{member.name[0]}</AvatarFallback>
-                    </Avatar>
-                    <Label htmlFor={`member-${member.id}`} className="flex-1 cursor-pointer">
-                      <div className="font-medium">{member.name}</div>
-                      {member.username && (
-                        <div className="text-xs text-gray-500">@{member.username}</div>
-                      )}
-                    </Label>
-                  </div>
-                ))}
+                {groupMembers.map(member => {
+                  // 安全地获取显示名称
+                  const displayName = member?.name || member?.username || member?.id || 'Unknown';
+                  const fallbackChar = displayName.charAt(0).toUpperCase() || '?';
+
+                  return (
+                    <div key={member.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
+                      <Checkbox
+                        id={`member-${member.id}`}
+                        checked={selectedMembers.includes(member.id)}
+                        onCheckedChange={() => handleMemberToggle(member.id)}
+                      />
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={member.avatar} alt={displayName} />
+                        <AvatarFallback>{fallbackChar}</AvatarFallback>
+                      </Avatar>
+                      <Label htmlFor={`member-${member.id}`} className="flex-1 cursor-pointer">
+                        <div className="font-medium">{displayName}</div>
+                        {member.username && (
+                          <div className="text-xs text-gray-500">@{member.username}</div>
+                        )}
+                      </Label>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center p-8 text-gray-500 text-sm">
