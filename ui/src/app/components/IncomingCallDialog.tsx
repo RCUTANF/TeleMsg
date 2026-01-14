@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -45,6 +47,14 @@ export function IncomingCallDialog({
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onReject()}>
       <DialogContent className="max-w-md p-0 overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700">
+        {/* 添加必需的DialogTitle和DialogDescription以符合无障碍功能要求 */}
+        <DialogTitle className="sr-only">
+          {isVoiceOnly ? '语音来电' : '视频来电'}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          来自 {callerName} 的{isVoiceOnly ? '语音' : '视频'}来电
+        </DialogDescription>
+
         <div className="relative p-8 text-center">
           {/* 来电动画背景 */}
           <div className="absolute inset-0 overflow-hidden">

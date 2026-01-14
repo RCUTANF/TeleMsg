@@ -24,10 +24,12 @@ export class MediasoupService {
 
   private config: MediasoupConfig;
   private roomId: string | null = null;
+  private isInitialized: boolean = false; // 🔥 新增：标记是否完全初始化
 
   // 🔥 新增：消费队列，防止并发调用导致 SDP 冲突
   private consumeQueue: Promise<void> = Promise.resolve();
   private isConsuming: Set<string> = new Set(); // 跟踪正在消费的 producer
+  private pendingProducers: Array<{producerId: string, userId: string, kind: string}> = []; // 🔥 新增：缓存等待处理的 producer
 
   // 回调函数
   private onRemoteStreamCallback: ((userId: string, stream: MediaStream) => void) | null = null;
@@ -78,6 +80,26 @@ export class MediasoupService {
 
     // 初始化Mediasoup设备
     await this.initDevice();
+
+    // 🔥 标记为已初始化
+    this.isInitialized = true;
+
+    // 🔥 处理在初始化期间缓存的 producer
+    if (this.pendingProducers.length > 0) {
+      console.log(`🔄 Processing ${this.pendingProducers.length} pending producers...`);
+      const producers = [...this.pendingProducers];
+      this.pendingProducers = [];
+
+      for (const { producerId, userId, kind } of producers) {
+        console.log(`🎯 Processing pending producer: ${producerId} from user ${userId} (${kind})`);
+        try {
+          await this.startConsuming(producerId);
+          console.log(`✅ Successfully processed pending producer ${producerId}`);
+        } catch (error) {
+          console.error(`❌ Failed to process pending producer ${producerId}:`, error);
+        }
+      }
+    }
 
     console.log(`✅ Joined room ${roomId}`);
   }
@@ -277,32 +299,43 @@ export class MediasoupService {
 
     this.sendTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
       try {
+        console.log('🔗 Connecting send transport...');
         await this.socketRequest('connect-transport', {
           transportId: this.sendTransport!.id,
           dtlsParameters,
         });
+        console.log('✅ Send transport connected');
         callback();
       } catch (error) {
+        console.error('❌ Failed to connect send transport:', error);
         errback(error as Error);
       }
     });
 
     this.sendTransport.on('produce', async ({ kind, rtpParameters }: any, callback: any, errback: any) => {
       try {
+        console.log(`📡 Producing ${kind}...`);
         const { id } = await this.socketRequest('produce', {
           transportId: this.sendTransport!.id,
           kind,
           rtpParameters,
         });
+        console.log(`✅ Producer created for ${kind}: ${id}`);
         callback({ id });
       } catch (error) {
+        console.error(`❌ Failed to produce ${kind}:`, error);
         errback(error as Error);
       }
     });
 
     this.sendTransport.on('connectionstatechange', (state: string) => {
-      console.log('Send transport state:', state);
+      console.log('🔌 Send transport state:', state);
       this.notifyStateChange(state);
+
+      if (state === 'failed' || state === 'disconnected') {
+        console.error('❌ Send transport connection failed!');
+        // 可以在这里添加重连逻辑
+      }
     });
   }
 
@@ -329,6 +362,11 @@ export class MediasoupService {
 
     this.recvTransport.on('connectionstatechange', (state: string) => {
       console.log('🔌 Recv transport state:', state);
+
+      if (state === 'failed' || state === 'disconnected') {
+        console.error('❌ Recv transport connection failed!');
+        // 可以在这里添加重连逻辑
+      }
     });
   }
 
@@ -341,6 +379,14 @@ export class MediasoupService {
     // 新的生产者加入
     this.socket.on('new-producer', async ({ producerId, userId, kind }: any) => {
       console.log(`📺 New producer: ${producerId} from user ${userId} (${kind})`);
+
+      // 🔥 检查是否已完全初始化
+      if (!this.isInitialized) {
+        console.log(`⏳ Service not fully initialized, queuing producer: ${producerId}`);
+        this.pendingProducers.push({ producerId, userId, kind });
+        return;
+      }
+
       try {
         await this.startConsuming(producerId);
         console.log(`✅ Successfully consuming producer ${producerId}`);
@@ -447,6 +493,8 @@ export class MediasoupService {
     // 🔥 清理消费队列状态
     this.isConsuming.clear();
     this.consumeQueue = Promise.resolve();
+    this.pendingProducers = []; // 🔥 清理待处理的生产者
+    this.isInitialized = false; // 🔥 重置初始化状态
 
     // 关闭传输通道
     if (this.sendTransport) {
