@@ -343,6 +343,27 @@ export function ChatArea({
 
       {/* 消息区域 */}
       <div className="flex-1 overflow-y-auto p-6" ref={scrollAreaRef}>
+        {/* 检查讨论空间权限 */}
+        {selectedDiscussionSpaceId && messages.length === 0 && (() => {
+          const currentSpace = discussionSpaces.find(s => s.id === selectedDiscussionSpaceId);
+          const isMember = currentSpace?.members.includes(currentUserId) ?? false;
+
+          if (!isMember) {
+            return (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-8 max-w-md">
+                  <div className="text-6xl mb-4">🔒</div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">您无权查看本讨论空间</h3>
+                  <p className="text-gray-600 text-sm">
+                    您不是此讨论空间的成员，无法查看历史消息。
+                  </p>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         <div className="space-y-4">
           {messages.map((message) => {
             const isCurrentUser = message.senderId === currentUserId;
@@ -521,55 +542,73 @@ export function ChatArea({
 
       {/* 输入区域 */}
       <div className="border-t p-4 bg-white flex-shrink-0">
-        <div className="flex items-end gap-2">
-          <div className="flex gap-1">
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              onChange={handleFileSelect}
-              accept="*/*"
-              title="发送文件"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              title="发送文件"
-            >
-              <Paperclip className="h-5 w-5" />
-            </Button>
-            {contact?.isGroup && selectedDiscussionSpaceId && (
+        {(() => {
+          // 检查讨论空间权限
+          if (selectedDiscussionSpaceId) {
+            const currentSpace = discussionSpaces.find(s => s.id === selectedDiscussionSpaceId);
+            const isMember = currentSpace?.members.includes(currentUserId) ?? false;
+
+            if (!isMember) {
+              return (
+                <div className="flex items-center justify-center py-2">
+                  <p className="text-gray-500 text-sm">您不是此讨论空间的成员，无法发送消息</p>
+                </div>
+              );
+            }
+          }
+
+          return (
+            <div className="flex items-end gap-2">
+              <div className="flex gap-1">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  accept="*/*"
+                  title="发送文件"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="发送文件"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </Button>
+                {contact?.isGroup && selectedDiscussionSpaceId && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="引用主群聊内容"
+                    onClick={() => setShowReferenceDialog(true)}
+                  >
+                    <span className="text-2xl">📎</span>
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" title="表情">
+                  <Smile className="h-5 w-5" />
+                </Button>
+              </div>
+              <div className="flex-1">
+                <Input
+                  placeholder="输入消息..."
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className="resize-none"
+                />
+              </div>
               <Button
-                variant="ghost"
-                size="icon"
-                title="引用主群聊内容"
-                onClick={() => setShowReferenceDialog(true)}
+                onClick={handleSend}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
               >
-                <span className="text-2xl">📎</span>
+                <Send className="h-4 w-4 mr-2" />
+                发送
               </Button>
-            )}
-            <Button variant="ghost" size="icon" title="表情">
-              <Smile className="h-5 w-5" />
-            </Button>
-          </div>
-          <div className="flex-1">
-            <Input
-              placeholder="输入消息..."
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleKeyPress}
-              className="resize-none"
-            />
-          </div>
-          <Button 
-            onClick={handleSend}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-          >
-            <Send className="h-4 w-4 mr-2" />
-            发送
-          </Button>
-        </div>
+            </div>
+          );
+        })()}
       </div>
       {/* 引用主群聊消息对话框 */}
       {showReferenceDialog && (
