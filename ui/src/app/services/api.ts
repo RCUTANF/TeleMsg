@@ -141,7 +141,31 @@ class ApiService {
    */
   getAbsoluteFileUrl(relativeUrl: string | undefined): string {
     if (!relativeUrl) {
-      return 'https://via.placeholder.com/300x200';
+      // 返回一个本地生成的占位符图片的data URL
+      const canvas = document.createElement('canvas');
+      canvas.width = 300;
+      canvas.height = 200;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // 设置背景
+        ctx.fillStyle = '#f3f4f6';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 添加文本
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无图片', canvas.width / 2, canvas.height / 2);
+
+        return canvas.toDataURL();
+      }
+      // 如果canvas不可用，返回一个简单的SVG
+      return 'data:image/svg+xml;base64,' + btoa(`
+        <svg width="300" height="200" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="#f3f4f6"/>
+          <text x="50%" y="50%" text-anchor="middle" dy=".3em" font-family="Arial" font-size="16" fill="#6b7280">暂无图片</text>
+        </svg>
+      `);
     }
 
     // 如果已经是完整URL，直接返回
