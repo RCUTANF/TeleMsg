@@ -306,6 +306,33 @@ export class MediasoupService {
       }
     });
 
+    // 生产者关闭
+    this.socket.on('producer-closed', ({ producerId, userId }: any) => {
+      console.log(`🔴 Producer closed: ${producerId} from user ${userId}`);
+
+      // 找到并关闭对应的消费者
+      for (const [consumerId, consumer] of this.consumers) {
+        if (consumer.producerId === producerId) {
+          consumer.close();
+          this.consumers.delete(consumerId);
+          break;
+        }
+      }
+
+      // 从远程流中移除对应的track
+      const remoteStream = this.remoteStreams.get(userId);
+      if (remoteStream) {
+        // 检查是否还有其他tracks
+        if (remoteStream.getTracks().length <= 1) {
+          // 如果这是最后一个track，移除整个流
+          this.remoteStreams.delete(userId);
+          if (this.onRemoteStreamRemovedCallback) {
+            this.onRemoteStreamRemovedCallback(userId);
+          }
+        }
+      }
+    });
+
     // 连接断开
     this.socket.on('disconnect', () => {
       console.log('Disconnected from server');
@@ -483,7 +510,24 @@ let mediasoupServiceInstance: MediasoupService | null = null;
 
 export function getMediasoupService(serverUrl?: string): MediasoupService {
   if (!mediasoupServiceInstance) {
-    const url = serverUrl || 'http://localhost:3001';
+    const defaultUrl = 'http://localhost:3001';
+
+    // 调试环境变量
+    console.log('=== Mediasoup Service Configuration ===');
+    console.log('import.meta:', import.meta);
+    console.log('import.meta.env:', (import.meta as any).env);
+
+    // 使用类型断言来访问Vite环境变量
+    const envUrl = (import.meta as any).env?.VITE_MEDIASOUP_SERVER_URL || defaultUrl;
+
+    console.log('Environment URL from VITE_MEDIASOUP_SERVER_URL:', envUrl);
+    console.log('Provided URL parameter:', serverUrl);
+    console.log('Default URL:', defaultUrl);
+
+    const url = serverUrl || envUrl;
+    console.log('Final URL to be used:', url);
+    console.log('=====================================');
+
     mediasoupServiceInstance = new MediasoupService({ serverUrl: url });
   }
   return mediasoupServiceInstance;

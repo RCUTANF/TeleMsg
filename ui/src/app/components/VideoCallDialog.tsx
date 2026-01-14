@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from './ui/dialog';
+import { VisuallyHidden } from './ui/visually-hidden';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { 
@@ -44,7 +46,7 @@ export function VideoCallDialog({
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const mediasoupService = useRef(getMediasoupService('http://localhost:3001'));
+  const mediasoupService = useRef(getMediasoupService());
 
   useEffect(() => {
     if (!open) return;
@@ -168,6 +170,11 @@ export function VideoCallDialog({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden bg-gray-900">
+        <VisuallyHidden>
+          <DialogTitle>
+            视频通话 - {isVoiceOnly ? '语音' : '视频'}通话与 {contactName || '用户'}
+          </DialogTitle>
+        </VisuallyHidden>
         <div className="relative h-[600px] bg-gradient-to-br from-gray-800 to-gray-900">
           {/* 视频区域 */}
           {!isVoiceOnly && !isVideoOff ? (

@@ -363,8 +363,8 @@ export function ChatArea({
             const isCurrentUser = message.senderId === currentUserId;
             // For group chats and discussion spaces, get the sender info
             let sender = null;
-            let displayName = '';
-            let displayAvatar = '';
+            let displayName;
+            let displayAvatar;
 
             if (isCurrentUser) {
               displayName = 'Me';
@@ -510,7 +510,41 @@ export function ChatArea({
                         className="max-w-xs rounded-lg"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = 'https://via.placeholder.com/300x200?text=Image+Load+Failed';
+                          // 创建一个本地的占位符图片，而不是使用外部服务
+                          const canvas = document.createElement('canvas');
+                          canvas.width = 300;
+                          canvas.height = 200;
+                          const ctx = canvas.getContext('2d');
+                          if (ctx) {
+                            // 设置背景
+                            ctx.fillStyle = '#f3f4f6';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                            // 添加文本
+                            ctx.fillStyle = '#6b7280';
+                            ctx.font = '16px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('图片加载失败', canvas.width / 2, canvas.height / 2 - 10);
+                            ctx.fillText(message.fileName || '未知图片', canvas.width / 2, canvas.height / 2 + 15);
+
+                            // 转换为 data URL
+                            target.src = canvas.toDataURL();
+                          } else {
+                            // 如果canvas不可用，隐藏图片并显示文件信息
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = `
+                                <div class="flex items-center justify-center w-full h-32 bg-gray-100 rounded-lg">
+                                  <div class="text-center">
+                                    <div class="text-gray-500 mb-2">📷</div>
+                                    <div class="text-sm text-gray-600">图片加载失败</div>
+                                    <div class="text-xs text-gray-500">${message.fileName || ''}</div>
+                                  </div>
+                                </div>
+                              `;
+                            }
+                          }
                         }}
                       />
                     </div>
@@ -715,9 +749,46 @@ export function ChatArea({
                         {message.type === 'image' && (
                           <div className="mt-2">
                             <img
-                              src={message.fileUrl || 'https://via.placeholder.com/200x150'}
+                              src={apiService.getAbsoluteFileUrl(message.fileUrl)}
                               alt={message.fileName}
                               className="max-w-full h-auto rounded"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                // 创建一个本地的占位符图片
+                                const canvas = document.createElement('canvas');
+                                canvas.width = 200;
+                                canvas.height = 150;
+                                const ctx = canvas.getContext('2d');
+                                if (ctx) {
+                                  // 设置背景
+                                  ctx.fillStyle = '#f3f4f6';
+                                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                                  // 添加文本
+                                  ctx.fillStyle = '#6b7280';
+                                  ctx.font = '14px Arial';
+                                  ctx.textAlign = 'center';
+                                  ctx.fillText('图片加载失败', canvas.width / 2, canvas.height / 2 - 5);
+                                  ctx.fillText(message.fileName || '未知图片', canvas.width / 2, canvas.height / 2 + 15);
+
+                                  // 转换为 data URL
+                                  target.src = canvas.toDataURL();
+                                } else {
+                                  // 如果canvas不可用，隐藏图片并显示文件信息
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = `
+                                      <div class="flex items-center justify-center w-full h-24 bg-gray-100 rounded">
+                                        <div class="text-center">
+                                          <div class="text-gray-500 mb-1">📷</div>
+                                          <div class="text-xs text-gray-600">图片加载失败</div>
+                                        </div>
+                                      </div>
+                                    `;
+                                  }
+                                }
+                              }}
                             />
                           </div>
                         )}
