@@ -888,52 +888,16 @@ class ApiService {
     });
   }
 
-  async getRolePermissions(roleId: string): Promise<Permission[]> {
-    try {
-      return await this.request(`/admin/roles/${roleId}/permissions`);
-    } catch (error) {
-      // 开发模式：如果后端不可用，返回模拟数据
-      console.warn('后端不可用，使用本地模拟模式:', error);
-
-      // 尝试从本地存储读取
-      const mockKey = `mock_role_permissions_${roleId}`;
-      const savedData = localStorage.getItem(mockKey);
-
-      if (savedData) {
-        const permissionIds = JSON.parse(savedData);
-        // 返回简单的权限对象数组
-        return permissionIds.map((id: string) => ({
-          id,
-          name: id.split('.').pop() || id,
-          description: `权限 ${id}`,
-          category: id.split('.')[0] || 'default'
-        }));
-      }
-
-      // 返回空数组，表示没有权限
-      return [];
-    }
+  async getRolePermissions(roleId: string): Promise<string[]> {
+    const response: any = await this.request(`/admin/roles/${roleId}/permissions`);
+    return response.permissions || [];
   }
 
   async updateRolePermissions(roleId: string, permissionIds: string[]): Promise<void> {
-    try {
-      await this.request(`/admin/roles/${roleId}/permissions`, {
-        method: 'PUT',
-        body: JSON.stringify({ permissionIds }),
-      });
-    } catch (error) {
-      // 开发模式：如果后端不可用，使用本地存储模拟
-      console.warn('后端不可用，使用本地模拟模式:', error);
-
-      // 保存到本地存储
-      const mockKey = `mock_role_permissions_${roleId}`;
-      localStorage.setItem(mockKey, JSON.stringify(permissionIds));
-
-      // 模拟延迟
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      console.log(`权限已保存到本地存储 (角色 ${roleId}):`, permissionIds);
-    }
+    await this.request(`/admin/roles/${roleId}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions: permissionIds }),
+    });
   }
 
   // 权限管理

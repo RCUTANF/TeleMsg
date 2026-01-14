@@ -97,6 +97,13 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
   const [userManagementOpen, setUserManagementOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
+  // 权限矩阵状态
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('DIRECTOR');
+  const [rolePermissions, setRolePermissions] = useState<string[]>([]);
+  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
+
   // 安全策略状态
   const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy>({
     password: {
@@ -174,6 +181,31 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     }
   };
 
+  // 加载权限数据
+  const loadPermissions = async () => {
+    setIsLoadingPermissions(true);
+    try {
+      const [permissions, rolePerms] = await Promise.all([
+        apiService.getAllPermissions(),
+        apiService.getRolePermissions(selectedRoleId)
+      ]);
+      setAllPermissions(permissions);
+      setRolePermissions(rolePerms);
+    } catch (error) {
+      console.error('Failed to load permissions:', error);
+      toast.error('加载权限数据失败');
+    } finally {
+      setIsLoadingPermissions(false);
+    }
+  };
+
+  // 当选择的角色改变时，重新加载权限
+  useEffect(() => {
+    if (activeMenu === 'permissions') {
+      loadPermissions();
+    }
+  }, [selectedRoleId, activeMenu]);
+
   // 用户管理操作
   const handleAddUser = () => {
     setSelectedUser(null);
@@ -211,29 +243,48 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     }
   };
 
-
-  // 权限项定义
-  const permissionCategories = {
-    '文件管理': [
-      { id: 'file.send', name: '发送文件', description: '上传并发送文件' },
-      { id: 'file.receive', name: '接收文件', description: '接收并下载文件' },
-    ],
-    '音视频通话': [
-      { id: 'call.voice', name: '语音通话', description: '发起语音通话' },
-      { id: 'call.video', name: '视频通话', description: '发起视频通话' },
-      { id: 'call.screen', name: '屏幕共享', description: '共享屏幕内容' },
-      { id: 'call.record', name: '通话录制', description: '录制通话内容' },
-    ],
-    '群组功能': [
-      { id: 'group.create', name: '创建群组', description: '创建新的群组' },
-      { id: 'group.manage', name: '管理群组', description: '管理群组设置和成员' },
-    ],
-    '用户管理': [
-      { id: 'user.create', name: '创建用户', description: '添加新用户' },
-      { id: 'user.edit', name: '编辑用户', description: '修改用户信息' },
-      { id: 'user.delete', name: '删除用户', description: '删除用户账号' },
-    ],
+  // 权限矩阵操作
+  const handlePermissionToggle = (permissionCode: string) => {
+    setRolePermissions(prev => {
+      if (prev.includes(permissionCode)) {
+        return prev.filter(p => p !== permissionCode);
+      } else {
+        return [...prev, permissionCode];
+      }
+    });
   };
+
+  const handleSavePermissions = async () => {
+    setIsSavingPermissions(true);
+    try {
+      await apiService.updateRolePermissions(selectedRoleId, rolePermissions);
+      toast.success('权限配置保存成功');
+    } catch (error: any) {
+      console.error('保存权限配置失败:', error);
+      toast.error(error.message || '保存权限配置失败');
+    } finally {
+      setIsSavingPermissions(false);
+    }
+  };
+
+  const handleCancelPermissions = () => {
+    // 重新加载权限，恢复到保存的状态
+    loadPermissions();
+  };
+
+
+  // 权限项定义 - 动态从 allPermissions 生成分类
+  const permissionCategories = allPermissions.reduce((acc, perm) => {
+    if (!acc[perm.category]) {
+      acc[perm.category] = [];
+    }
+    acc[perm.category].push({
+      id: perm.id,
+      name: perm.name,
+      description: perm.description
+    });
+    return acc;
+  }, {} as Record<string, Array<{ id: string; name: string; description: string }>>);
 
 
   const statusColors = {
@@ -458,7 +509,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                           <CardTitle>角色权限配置</CardTitle>
                           <CardDescription>系统包含三种固定角色：系统管理员、部门主管和普通员工</CardDescription>
                         </div>
-                        <Select defaultValue="2">
+                        <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
                           <SelectTrigger className="w-48">
                             <SelectValue placeholder="选择角色" />
                           </SelectTrigger>
@@ -473,39 +524,69 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="max-h-[70vh] border rounded-lg overflow-x-auto overflow-y-auto">
-                        <div className="p-4 min-w-full">
-                          <div className="space-y-6 pb-4">
-                            {Object.entries(permissionCategories).map(([category, permissions]) => (
-                              <div key={category} className="space-y-3">
-                                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                                  <FolderTree className="h-4 w-4 text-purple-600" />
-                                  {category}
-                                </h3>
-                                <div className="ml-6 space-y-3">
-                                  {permissions.map((perm) => (
-                                    <div key={perm.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
-                                      <div className="flex items-center gap-3 flex-1">
-                                        <Checkbox id={perm.id} defaultChecked={Math.random() > 0.3} />
-                                        <div>
-                                          <Label htmlFor={perm.id} className="font-medium cursor-pointer">
-                                            {perm.name}
-                                          </Label>
-                                          <p className="text-xs text-gray-500">{perm.description}</p>
-                                        </div>
+                      {isLoadingPermissions ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="text-gray-500">加载权限配置中...</div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="max-h-[70vh] border rounded-lg overflow-x-auto overflow-y-auto">
+                            <div className="p-4 min-w-full">
+                              <div className="space-y-6 pb-4">
+                                {Object.entries(permissionCategories).length === 0 ? (
+                                  <div className="text-center py-8 text-gray-500">
+                                    暂无权限数据
+                                  </div>
+                                ) : (
+                                  Object.entries(permissionCategories).map(([category, permissions]) => (
+                                    <div key={category} className="space-y-3">
+                                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                        <FolderTree className="h-4 w-4 text-purple-600" />
+                                        {category}
+                                      </h3>
+                                      <div className="ml-6 space-y-3">
+                                        {permissions.map((perm) => (
+                                          <div key={perm.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded">
+                                            <div className="flex items-center gap-3 flex-1">
+                                              <Checkbox
+                                                id={perm.id}
+                                                checked={rolePermissions.includes(perm.id)}
+                                                onCheckedChange={() => handlePermissionToggle(perm.id)}
+                                              />
+                                              <div>
+                                                <Label htmlFor={perm.id} className="font-medium cursor-pointer">
+                                                  {perm.name}
+                                                </Label>
+                                                <p className="text-xs text-gray-500">{perm.description}</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
+                                  ))
+                                )}
                               </div>
-                            ))}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2 pt-4 border-t">
-                        <Button variant="outline">取消</Button>
-                        <Button className="bg-purple-600 hover:bg-purple-700">保存权限配置</Button>
-                      </div>
+                          <div className="flex justify-end gap-2 pt-4 border-t">
+                            <Button
+                              variant="outline"
+                              onClick={handleCancelPermissions}
+                              disabled={isSavingPermissions}
+                            >
+                              取消
+                            </Button>
+                            <Button
+                              className="bg-purple-600 hover:bg-purple-700"
+                              onClick={handleSavePermissions}
+                              disabled={isSavingPermissions}
+                            >
+                              {isSavingPermissions ? '保存中...' : '保存权限配置'}
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                 </div>

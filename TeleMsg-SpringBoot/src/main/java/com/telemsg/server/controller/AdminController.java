@@ -2,10 +2,13 @@ package com.telemsg.server.controller;
 
 import com.telemsg.server.entity.User;
 import com.telemsg.server.entity.Department;
+import com.telemsg.server.entity.Permission;
 import com.telemsg.server.service.UserService;
 import com.telemsg.server.service.MessageService;
 import com.telemsg.server.service.JwtService;
 import com.telemsg.server.service.DepartmentService;
+import com.telemsg.server.service.PermissionService;
+import com.telemsg.server.service.RolePermissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +37,8 @@ public class AdminController {
     private final MessageService messageService;
     private final JwtService jwtService;
     private final DepartmentService departmentService;
+    private final PermissionService permissionService;
+    private final RolePermissionService rolePermissionService;
 
     /**
      * 获取所有用户
@@ -254,6 +259,82 @@ public class AdminController {
     }
 
     /**
+     * 获取所有权限列表
+     */
+    @GetMapping("/permissions")
+    public ResponseEntity<?> getAllPermissions(@RequestHeader("Authorization") String authHeader) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            List<Permission> permissions = permissionService.getAllPermissions();
+            List<Map<String, Object>> permissionResponses = permissions.stream()
+                .map(this::convertToPermissionResponse)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(permissionResponses);
+
+        } catch (Exception e) {
+            log.error("获取权限列表失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "获取权限列表失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 获取角色权限详情
+     */
+    @GetMapping("/roles/{roleId}/permissions")
+    public ResponseEntity<?> getRolePermissions(@RequestHeader("Authorization") String authHeader,
+                                               @PathVariable String roleId) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            // 验证角色ID是否有效
+            User.UserRole.valueOf(roleId.toUpperCase());
+
+            List<String> enabledPermissions = rolePermissionService.getEnabledPermissionCodes(roleId.toUpperCase());
+
+            return ResponseEntity.ok(Map.of("permissions", enabledPermissions));
+
+        } catch (IllegalArgumentException e) {
+            log.error("无效的角色ID: {}", roleId);
+            return ResponseEntity.badRequest().body(Map.of("error", "无效的角色ID"));
+        } catch (Exception e) {
+            log.error("获取角色权限失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "获取角色权限失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 更新角色权限配置
+     */
+    @PutMapping("/roles/{roleId}/permissions")
+    public ResponseEntity<?> updateRolePermissions(@RequestHeader("Authorization") String authHeader,
+                                                  @PathVariable String roleId,
+                                                  @RequestBody @Validated UpdateRolePermissionsRequest request) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            // 验证角色ID是否有效
+            User.UserRole.valueOf(roleId.toUpperCase());
+
+            rolePermissionService.updateRolePermissions(roleId.toUpperCase(), request.getPermissions());
+
+            return ResponseEntity.ok(Map.of(
+                "message", "权限配置更新成功",
+                "roleId", roleId.toUpperCase(),
+                "permissionCount", request.getPermissions().size()
+            ));
+
+        } catch (IllegalArgumentException e) {
+            log.error("无效的角色ID: {}", roleId);
+            return ResponseEntity.badRequest().body(Map.of("error", "无效的角色ID"));
+        } catch (Exception e) {
+            log.error("更新角色权限失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "更新角色权限失败: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 获取角色成员
      */
     @GetMapping("/roles/{roleId}/members")
@@ -311,6 +392,18 @@ public class AdminController {
             }
         }
         throw new RuntimeException("无效的认证token");
+    }
+
+    /**
+     * 转换为权限响应格式
+     */
+    private Map<String, Object> convertToPermissionResponse(Permission permission) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", permission.getCode());
+        response.put("name", permission.getName());
+        response.put("description", permission.getDescription());
+        response.put("category", permission.getCategory());
+        return response;
     }
 
     /**
@@ -378,5 +471,14 @@ public class AdminController {
         // Getters and Setters
         public List<String> getUserIds() { return userIds; }
         public void setUserIds(List<String> userIds) { this.userIds = userIds; }
+    }
+
+    // 更新角色权限请求对象
+    public static class UpdateRolePermissionsRequest {
+        private List<String> permissions;
+
+        // Getters and Setters
+        public List<String> getPermissions() { return permissions; }
+        public void setPermissions(List<String> permissions) { this.permissions = permissions; }
     }
 }
