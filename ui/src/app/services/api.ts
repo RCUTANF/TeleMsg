@@ -7,7 +7,8 @@ export interface User {
   avatar: string;
   role?: string;
   department?: string;
-  status?: 'active' | 'inactive' | 'suspended';
+  departmentId?: string;
+  status?: 'online' | 'offline' | 'busy' | 'away';
   isAdmin?: boolean;
   lastActive?: string;
   createdAt?: string;
@@ -765,10 +766,12 @@ class ApiService {
     role?: string;
     departmentId?: string;
   }): Promise<User> {
-    return this.request<User>('/auth/register', {
+    const response: any = await this.request<any>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    // /auth/register 返回 { token, user } 格式，需要提取 user
+    return response.user || response as User;
   }
 
   async updateUser(userId: string, data: {

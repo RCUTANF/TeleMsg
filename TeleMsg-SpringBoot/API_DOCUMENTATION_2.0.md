@@ -1342,7 +1342,12 @@ Authorization: Bearer <admin_token>
     "username": "testuser",
     "avatar": "http://...",
     "role": "director",
-    "isAdmin": true
+    "isAdmin": true,
+    "department": "技术部",
+    "departmentId": "dept_001",
+    "status": "online",
+    "lastActive": "2025-01-14T15:30:00",
+    "createdAt": "2024-12-01T10:00:00"
   }
 ]
 ```
@@ -1474,7 +1479,14 @@ Authorization: Bearer <admin_token>
     "id": "user_001",
     "name": "张三",
     "username": "testuser",
-    "role": "manager"
+    "avatar": "http://...",
+    "role": "manager",
+    "isAdmin": false,
+    "department": "技术部",
+    "departmentId": "dept_001",
+    "status": "online",
+    "lastActive": "2025-01-14T15:30:00",
+    "createdAt": "2024-12-01T10:00:00"
   }
 ]
 ```
@@ -1569,7 +1581,14 @@ Authorization: Bearer <admin_token>
     "id": "user_001",
     "name": "张三",
     "username": "testuser",
-    "role": "director"
+    "avatar": "http://...",
+    "role": "director",
+    "isAdmin": true,
+    "department": "技术部",
+    "departmentId": "dept_001",
+    "status": "online",
+    "lastActive": "2025-01-14T15:30:00",
+    "createdAt": "2024-12-01T10:00:00"
   }
 ]
 ```

@@ -39,8 +39,8 @@ export function UserManagementDialog({ open, onClose, user, departments, onSaved
           name: user.name || '',
           email: '',
           phone: '',
-          role: user.role?.toLowerCase() || 'employee',
-          departmentId: user.department || '',
+          role: (user.role || 'employee').toLowerCase(),
+          departmentId: user.departmentId || '',
         });
       } else {
         setFormData({
@@ -72,7 +72,7 @@ export function UserManagementDialog({ open, onClose, user, departments, onSaved
     setLoading(true);
     try {
       if (user) {
-        // 更新用户
+        // 更新用户基本信息
         await apiService.updateUser(user.id, {
           name: formData.name,
           email: formData.email,
@@ -83,23 +83,44 @@ export function UserManagementDialog({ open, onClose, user, departments, onSaved
 
         // 如果部门改变，更新部门
         const newDeptId = formData.departmentId === '__none__' ? '' : formData.departmentId;
-        if (newDeptId && newDeptId !== user.department) {
-          await apiService.updateUserDepartment(user.id, newDeptId);
+        const oldDeptId = user.departmentId || '';
+        if (newDeptId !== oldDeptId) {
+          // 如果有旧部门，先移除用户
+          if (oldDeptId) {
+            try {
+              await apiService.removeDepartmentMember(oldDeptId, user.id);
+            } catch (error) {
+              console.warn('移除旧部门成员失败，继续执行:', error);
+            }
+          }
+          // 如果有新部门，添加用户
+          if (newDeptId) {
+            await apiService.addDepartmentMembers(newDeptId, [user.id]);
+          }
         }
 
         toast.success('用户更新成功');
       } else {
         // 创建用户
-        const deptId = formData.departmentId === '__none__' ? undefined : formData.departmentId;
-        await apiService.createUser({
+        const newUser = await apiService.createUser({
           username: formData.username,
           password: formData.password,
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
           role: formData.role,
-          departmentId: deptId,
         });
+
+        // 如果指定了部门，添加到部门
+        const deptId = formData.departmentId === '__none__' ? '' : formData.departmentId;
+        if (deptId && newUser.id) {
+          try {
+            await apiService.addDepartmentMembers(deptId, [newUser.id]);
+          } catch (error) {
+            console.warn('添加用户到部门失败，但用户已创建:', error);
+          }
+        }
+
         toast.success('用户创建成功');
       }
 
@@ -200,8 +221,8 @@ export function UserManagementDialog({ open, onClose, user, departments, onSaved
           <div className="space-y-2">
             <Label htmlFor="department">部门</Label>
             <Select
-              value={formData.departmentId || undefined}
-              onValueChange={(value) => setFormData({ ...formData, departmentId: value || '' })}
+              value={formData.departmentId || '__none__'}
+              onValueChange={(value) => setFormData({ ...formData, departmentId: value === '__none__' ? '' : value })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="选择部门" />

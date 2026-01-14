@@ -420,6 +420,27 @@ public class AdminController {
         response.put("avatar", user.getAvatar() != null ? user.getAvatar() : "");
         response.put("role", user.getRole().name().toLowerCase());
         response.put("isAdmin", user.getIsAdmin());
+
+        // 添加部门信息
+        String departmentName = "未分配";
+        if (user.getDepartmentId() != null && !user.getDepartmentId().isEmpty()) {
+            try {
+                var deptOpt = departmentService.findByDepartmentId(user.getDepartmentId());
+                if (deptOpt.isPresent()) {
+                    departmentName = deptOpt.get().getName();
+                }
+            } catch (Exception e) {
+                log.warn("获取用户部门信息失败, userId={}, departmentId={}", user.getUserId(), user.getDepartmentId(), e);
+            }
+        }
+        response.put("department", departmentName);
+        response.put("departmentId", user.getDepartmentId());
+
+        // 添加状态信息
+        response.put("status", user.getStatus().name().toLowerCase());
+        response.put("lastActive", user.getLastLoginTime() != null ? user.getLastLoginTime().toString() : null);
+        response.put("createdAt", user.getCreateTime() != null ? user.getCreateTime().toString() : null);
+
         return response;
     }
 

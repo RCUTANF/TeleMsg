@@ -288,15 +288,17 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
 
 
   const statusColors = {
-    active: 'bg-green-100 text-green-700 border-green-200',
-    inactive: 'bg-gray-100 text-gray-700 border-gray-200',
-    suspended: 'bg-red-100 text-red-700 border-red-200'
+    online: 'bg-green-100 text-green-700 border-green-200',
+    offline: 'bg-gray-100 text-gray-700 border-gray-200',
+    busy: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    away: 'bg-orange-100 text-orange-700 border-orange-200'
   };
 
   const statusLabels = {
-    active: '正常',
-    inactive: '离线',
-    suspended: '已停用'
+    online: '在线',
+    offline: '离线',
+    busy: '忙碌',
+    away: '离开'
   };
 
   const filteredUsers = users.filter(user => 
