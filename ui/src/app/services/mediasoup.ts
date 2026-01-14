@@ -197,9 +197,9 @@ export class MediasoupService {
     // 恢复消费者
     await this.socketRequest('resume-consumer', { consumerId: consumer.id });
 
-    // 创建或获取远程流
-    // 使用更好的用户识别方式
-    const remoteUserId = consumerInfo.appData?.userId || producerId.split('_')[0] || 'remote';
+    // 🔥 关键修复：使用固定的远程用户ID（基于房间的另一方）
+    // 不要为每个 producer 创建单独的流，而是将所有轨道添加到同一个流
+    const remoteUserId = 'remote-user'; // 简化处理，一个房间只有两个人
     console.log(`👤 Remote user ID: ${remoteUserId}, Kind: ${consumer.kind}`);
 
     let remoteStream = this.remoteStreams.get(remoteUserId);
@@ -207,15 +207,18 @@ export class MediasoupService {
       console.log(`🆕 Creating new remote stream for user: ${remoteUserId}`);
       remoteStream = new MediaStream();
       this.remoteStreams.set(remoteUserId, remoteStream);
+    } else {
+      console.log(`📦 Using existing remote stream (current tracks: ${remoteStream.getTracks().length})`);
     }
 
     // 添加track到流
     console.log(`➕ Adding ${consumer.kind} track to remote stream`);
     remoteStream.addTrack(consumer.track);
 
-    console.log(`📊 Remote stream now has ${remoteStream.getTracks().length} tracks`);
+    console.log(`📊 Remote stream now has ${remoteStream.getTracks().length} tracks:`,
+      remoteStream.getTracks().map(t => `${t.kind} (${t.id})`));
 
-    // 触发回调
+    // 🔥 关键：每次添加轨道后都触发回调，让UI更新
     if (this.onRemoteStreamCallback) {
       console.log(`📢 Calling remote stream callback for user: ${remoteUserId}`);
       this.onRemoteStreamCallback(remoteUserId, remoteStream);

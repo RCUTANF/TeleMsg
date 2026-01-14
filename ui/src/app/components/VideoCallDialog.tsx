@@ -46,7 +46,9 @@ export function VideoCallDialog({
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null); // 专门用于播放远程音频
   const mediasoupService = useRef(getMediasoupService());
+  const remoteStreamSet = useRef(false); // 标记是否已经设置过远程流
 
   useEffect(() => {
     if (!open) return;
@@ -70,17 +72,34 @@ export function VideoCallDialog({
           console.log(`📊 Stream has ${stream.getTracks().length} tracks:`,
             stream.getTracks().map(t => `${t.kind} (${t.id})`));
 
-          if (remoteVideoRef.current) {
-            console.log('✅ Setting remote video srcObject');
-            remoteVideoRef.current.srcObject = stream;
-            setHasRemoteVideo(true);
+          // 🔥 关键修复：只在第一次收到流时设置 srcObject
+          // MediaStream 会自动更新当新的轨道被添加时
+          if (!remoteStreamSet.current) {
+            console.log('🎬 First time setting remote stream...');
 
-            // 确保视频播放
-            remoteVideoRef.current.play().catch(err => {
-              console.error('❌ Failed to play remote video:', err);
-            });
+            // 设置视频元素
+            if (remoteVideoRef.current) {
+              console.log('✅ Setting remote video srcObject');
+              remoteVideoRef.current.srcObject = stream;
+              remoteVideoRef.current.play().catch(err => {
+                console.error('❌ Failed to play remote video:', err);
+              });
+            }
+
+            // 设置音频元素（专门用于音频播放）
+            if (remoteAudioRef.current) {
+              console.log('✅ Setting remote audio srcObject');
+              remoteAudioRef.current.srcObject = stream;
+              remoteAudioRef.current.play().catch(err => {
+                console.error('❌ Failed to play remote audio:', err);
+              });
+            }
+
+            remoteStreamSet.current = true;
+            setHasRemoteVideo(true);
           } else {
-            console.warn('⚠️ Remote video ref is null!');
+            console.log(`📝 Stream updated with new track (${stream.getTracks().length} total tracks)`);
+            // 不需要重新设置 srcObject，MediaStream 会自动更新
           }
         });
 
@@ -139,6 +158,7 @@ export function VideoCallDialog({
       setIsMuted(false);
       setIsVideoOff(false);
       setHasRemoteVideo(false);
+      remoteStreamSet.current = false; // 重置标记
     };
   }, [open, contactId, isVoiceOnly, callId]);
 
@@ -175,7 +195,11 @@ export function VideoCallDialog({
             视频通话 - {isVoiceOnly ? '语音' : '视频'}通话与 {contactName || '用户'}
           </DialogTitle>
         </VisuallyHidden>
-        <div className="relative h-[600px] bg-gradient-to-br from-gray-800 to-gray-900">
+
+        {/* 隐藏的音频元素用于播放远程音频 */}
+        <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+
+        <div className="relative h-[600px] bg-gradient-to-br from-gray-800 to-gray-900">{/* 视频区域 */}
           {/* 视频区域 */}
           {!isVoiceOnly && !isVideoOff ? (
             <div className="w-full h-full flex items-center justify-center relative">
