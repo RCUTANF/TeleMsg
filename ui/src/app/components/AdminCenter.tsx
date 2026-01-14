@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { apiService, User, Role, Department } from '../services/api';
+import { apiService, User, Role, Department, Permission } from '../services/api';
 import { Toaster } from './ui/sonner';
 import { toast } from 'sonner';
 import {
@@ -84,6 +84,8 @@ interface SecurityPolicy {
 export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps) {
   const [activeMenu, setActiveMenu] = useState('users');
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all-dept');
   const [_isLoading, setIsLoading] = useState(false);
 
   // 对话框状态管理
@@ -301,11 +303,23 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     away: '离开'
   };
 
-  const filteredUsers = users.filter(user => 
-    user.name.includes(searchQuery) || 
-    user.username.includes(searchQuery) ||
-    (user.department?.includes(searchQuery) ?? false)
-  );
+  const filteredUsers = users.filter(user => {
+    // Search query filter
+    const matchesSearch = user.name.includes(searchQuery) ||
+                         user.username.includes(searchQuery) ||
+                         (user.department?.includes(searchQuery) ?? false);
+
+    // Status filter
+    const matchesStatus = statusFilter === 'all' ||
+                         (statusFilter === 'active' && (user.status === 'online' || user.status === 'busy' || user.status === 'away')) ||
+                         (statusFilter === 'inactive' && user.status === 'offline');
+
+    // Department filter
+    const matchesDepartment = departmentFilter === 'all-dept' ||
+                             user.department === departmentFilter;
+
+    return matchesSearch && matchesStatus && matchesDepartment;
+  });
 
   const menuItems = [
     { id: 'users', icon: Users, label: '用户管理', count: users.length },
@@ -407,26 +421,27 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                             onChange={(e) => setSearchQuery(e.target.value)}
                           />
                         </div>
-                        <Select defaultValue="all">
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
                           <SelectTrigger className="w-40">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">全部状态</SelectItem>
-                            <SelectItem value="active">正常</SelectItem>
+                            <SelectItem value="active">在线</SelectItem>
                             <SelectItem value="inactive">离线</SelectItem>
-                            <SelectItem value="suspended">已停用</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Select defaultValue="all-dept">
+                        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                           <SelectTrigger className="w-40">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all-dept">全部部门</SelectItem>
-                            <SelectItem value="tech">技术部</SelectItem>
-                            <SelectItem value="market">市场部</SelectItem>
-                            <SelectItem value="hr">人力资源部</SelectItem>
+                            {departments.map((dept) => (
+                              <SelectItem key={dept.id} value={dept.name}>
+                                {dept.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
