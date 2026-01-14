@@ -90,7 +90,7 @@ public class FileController {
     }
 
     /**
-     * 直接下载文件
+     * 直接下载文件（作为附件）
      */
     @GetMapping("/{fileId}")
     public ResponseEntity<?> downloadFile(@RequestHeader(value = "Authorization", required = false) String authHeader,
@@ -123,6 +123,43 @@ public class FileController {
             log.error("Failed to download file {}: {}", fileId, e.getMessage());
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "文件下载失败"));
+        }
+    }
+
+    /**
+     * 查看文件（内联显示，用于图片预览）
+     */
+    @GetMapping("/{fileId}/view")
+    public ResponseEntity<?> viewFile(@RequestHeader(value = "Authorization", required = false) String authHeader,
+                                     @PathVariable String fileId) {
+        try {
+            // 如果有认证头，验证token
+            if (authHeader != null && !authHeader.isEmpty()) {
+                extractUserIdFromToken(authHeader);
+            }
+
+            Optional<FileInfo> fileInfoOpt = minIOService.getFileInfo(fileId);
+            if (fileInfoOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            FileInfo fileInfo = fileInfoOpt.get();
+            InputStream fileStream = minIOService.getFileStream(fileId);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "inline");
+            headers.add(HttpHeaders.CONTENT_TYPE, fileInfo.getContentType());
+            headers.add(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileInfo.getFileSize()));
+            headers.add(HttpHeaders.CACHE_CONTROL, "max-age=3600");
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(new InputStreamResource(fileStream));
+
+        } catch (Exception e) {
+            log.error("Failed to view file {}: {}", fileId, e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "文件查看失败"));
         }
     }
 

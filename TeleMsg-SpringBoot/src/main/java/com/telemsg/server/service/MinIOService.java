@@ -117,7 +117,7 @@ public class MinIOService {
             );
 
             // 生成文件访问URL
-            String fileUrl = getFileUrl(objectKey);
+            String fileUrl = getFileUrl(fileId);
 
             // 保存文件信息到数据库
             FileInfo fileInfo = FileInfo.create(
@@ -178,16 +178,31 @@ public class MinIOService {
      */
     public InputStream getFileStream(String fileId) {
         try {
-            Optional<FileInfo> fileInfoOpt = fileInfoRepository.findByFileId(fileId);
+            // 检查是否是缩略图请求
+            boolean isThumbnail = fileId.startsWith("thumb_");
+            String actualFileId = isThumbnail ? fileId.substring(6) : fileId;
+
+            Optional<FileInfo> fileInfoOpt = fileInfoRepository.findByFileId(actualFileId);
             if (fileInfoOpt.isEmpty()) {
-                throw new RuntimeException("File not found: " + fileId);
+                throw new RuntimeException("File not found: " + actualFileId);
             }
 
             FileInfo fileInfo = fileInfoOpt.get();
+
+            // 如果是缩略图请求，构造缩略图的对象键
+            String objectKey;
+            if (isThumbnail) {
+                // 从原文件的objectKey中提取日期路径，然后加上缩略图文件名
+                String datePath = fileInfo.getObjectKey().substring(0, fileInfo.getObjectKey().lastIndexOf("/"));
+                objectKey = datePath + "/thumb_" + actualFileId + ".jpg";
+            } else {
+                objectKey = fileInfo.getObjectKey();
+            }
+
             return minioClient.getObject(
                 GetObjectArgs.builder()
                     .bucket(fileInfo.getBucketName())
-                    .object(fileInfo.getObjectKey())
+                    .object(objectKey)
                     .build()
             );
         } catch (Exception e) {
@@ -307,9 +322,11 @@ public class MinIOService {
 
     /**
      * 生成文件访问URL
+     * 使用后端API URL而不是MinIO直接URL，以解决CORS和访问控制问题
      */
-    private String getFileUrl(String objectKey) {
-        return minioConfig.getUrl() + "/" + minioConfig.getBucketName() + "/" + objectKey;
+    private String getFileUrl(String fileId) {
+        // 返回后端API的查看URL，用于图片内联显示
+        return "/api/files/" + fileId + "/view";
     }
 
     /**
@@ -342,7 +359,8 @@ public class MinIOService {
                     .build()
             );
 
-            return getFileUrl(thumbnailKey);
+            // 返回缩略图的API URL（使用 thumb_ 前缀 + 原文件ID）
+            return getFileUrl("thumb_" + fileId);
 
         } catch (Exception e) {
             log.warn("Failed to generate thumbnail for file: {}, error: {}", fileId, e.getMessage());

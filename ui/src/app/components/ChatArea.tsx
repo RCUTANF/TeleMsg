@@ -484,9 +484,13 @@ export function ChatArea({
                       }`}
                     >
                       <img
-                        src={message.fileUrl || 'https://via.placeholder.com/300x200'}
+                        src={apiService.getAbsoluteFileUrl(message.fileUrl)}
                         alt={message.fileName}
                         className="max-w-xs rounded-lg"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = 'https://via.placeholder.com/300x200?text=Image+Load+Failed';
+                        }}
                       />
                     </div>
                   )}
