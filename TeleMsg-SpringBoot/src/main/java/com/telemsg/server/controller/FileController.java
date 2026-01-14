@@ -131,16 +131,15 @@ public class FileController {
     }
 
     /**
-     * 查看文件（内联显示，用于图片预览）
+     * 查看文件（内联显示，用于��片预览）
      */
+    @RequirePermission(value = "file.receive", description = "接收文件")
     @GetMapping("/{fileId}/view")
-    public ResponseEntity<?> viewFile(@RequestHeader(value = "Authorization", required = false) String authHeader,
+    public ResponseEntity<?> viewFile(@RequestHeader("Authorization") String authHeader,
                                      @PathVariable String fileId) {
         try {
-            // 如果有认证头，验证token
-            if (authHeader != null && !authHeader.isEmpty()) {
-                extractUserIdFromToken(authHeader);
-            }
+            // 验证token
+            extractUserIdFromToken(authHeader);
 
             Optional<FileInfo> fileInfoOpt = minIOService.getFileInfo(fileId);
             if (fileInfoOpt.isEmpty()) {

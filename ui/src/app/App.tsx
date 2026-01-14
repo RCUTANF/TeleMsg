@@ -300,7 +300,16 @@ function App() {
       toast.success(`群聊 "${name}" 已创建`);
     } catch (error) {
       console.error('Failed to create group:', error);
-      toast.error('创建群聊失败，请重试');
+
+      // 针对权限错误给出友好提示
+      if (error instanceof Error && (error.message.includes('权限') || error.message.includes('Forbidden'))) {
+        toast.error('⚠️ ' + error.message, {
+          duration: 5000,
+          description: '请联系管理员或检查您的角色权限配置'
+        });
+      } else {
+        toast.error('创建群聊失败，请重试');
+      }
     }
   };
 
@@ -915,7 +924,28 @@ function App() {
       console.log('消息发送成功:', newMessage);
     } catch (error) {
       console.error('Failed to send message:', error);
-      toast.error('发送消息失败: ' + (error instanceof Error ? error.message : '未知错误'));
+
+      // 针对不同类型的错误给出友好提示
+      let errorMessage = '发送消息失败';
+
+      if (error instanceof Error) {
+        const msg = error.message;
+
+        // 检查是否是权限错误
+        if (msg.includes('权限') || msg.includes('没有') || msg.includes('Forbidden')) {
+          errorMessage = '⚠️ ' + msg;
+          toast.error(errorMessage, {
+            duration: 5000,
+            description: '请联系管理员或检查您的角色权限配置'
+          });
+          return;
+        }
+
+        // 其他错误
+        errorMessage = msg || '未知错误';
+      }
+
+      toast.error('发送失败：' + errorMessage);
     }
   };
 
