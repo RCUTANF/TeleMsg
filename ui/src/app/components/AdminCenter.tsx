@@ -289,7 +289,6 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
         <div className="flex items-center gap-3">
           <div className="text-right">
             <div className="text-sm font-medium">系统管理员</div>
-            <div className="text-xs text-purple-100">张三</div>
           </div>
         </div>
       </header>
