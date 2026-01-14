@@ -8,6 +8,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 显示消息框
   showMessageBox: (options) => ipcRenderer.invoke('show-message-box', options),
 
+  // 代理相关 API
+  proxy: {
+    // 设置代理配置
+    setProxySettings: (settings) => ipcRenderer.invoke('set-proxy-settings', settings),
+
+    // 获取当前代理配置
+    getProxySettings: () => ipcRenderer.invoke('get-proxy-settings'),
+
+    // 验证代理连接
+    validateProxyConnection: (settings) => ipcRenderer.invoke('validate-proxy-connection', settings),
+  },
+
   // 平台信息
   platform: process.platform,
 
