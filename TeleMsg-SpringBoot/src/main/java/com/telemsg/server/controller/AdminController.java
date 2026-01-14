@@ -192,6 +192,46 @@ public class AdminController {
     }
 
     /**
+     * 添加部门成员
+     */
+    @PostMapping("/departments/{departmentId}/members")
+    public ResponseEntity<?> addDepartmentMembers(@RequestHeader("Authorization") String authHeader,
+                                                 @PathVariable String departmentId,
+                                                 @RequestBody @Validated AddDepartmentMembersRequest request) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            departmentService.addDepartmentMembers(departmentId, request.getUserIds());
+
+            return ResponseEntity.ok(Map.of("message", "成功添加 " + request.getUserIds().size() + " 名成员"));
+
+        } catch (Exception e) {
+            log.error("添加部门成员失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "添加部门成员失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 移除部门成员
+     */
+    @DeleteMapping("/departments/{departmentId}/members/{userId}")
+    public ResponseEntity<?> removeDepartmentMember(@RequestHeader("Authorization") String authHeader,
+                                                   @PathVariable String departmentId,
+                                                   @PathVariable String userId) {
+        try {
+            extractUserAndCheckAdmin(authHeader);
+
+            departmentService.removeDepartmentMember(departmentId, userId);
+
+            return ResponseEntity.ok(Map.of("message", "成功移除成员"));
+
+        } catch (Exception e) {
+            log.error("移除部门成员失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", "移除部门成员失败: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 获取角色列表
      */
     @GetMapping("/roles")
@@ -329,5 +369,14 @@ public class AdminController {
 
         public String getParent() { return parent; }
         public void setParent(String parent) { this.parent = parent; }
+    }
+
+    // 添加部门成员请求对象
+    public static class AddDepartmentMembersRequest {
+        private List<String> userIds;
+
+        // Getters and Setters
+        public List<String> getUserIds() { return userIds; }
+        public void setUserIds(List<String> userIds) { this.userIds = userIds; }
     }
 }

@@ -122,6 +122,52 @@ public class DepartmentService {
     }
 
     /**
+     * 批量添加部门成员
+     */
+    @Transactional
+    public void addDepartmentMembers(String departmentId, List<String> userIds) {
+        // 验证部门是否存在
+        Optional<Department> departmentOpt = departmentRepository.findByDepartmentId(departmentId);
+        if (departmentOpt.isEmpty()) {
+            throw new RuntimeException("部门不存在");
+        }
+
+        // 批量更新用户的部门ID
+        for (String userId : userIds) {
+            Optional<User> userOpt = userRepository.findByUserId(userId);
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                user.setDepartmentId(departmentId);
+                userRepository.save(user);
+            } else {
+                log.warn("用户不存在，跳过添加: userId={}", userId);
+            }
+        }
+
+        log.info("批量添加部门成员成功: departmentId={}, count={}", departmentId, userIds.size());
+    }
+
+    /**
+     * 移除部门成员
+     */
+    @Transactional
+    public void removeDepartmentMember(String departmentId, String userId) {
+        Optional<User> userOpt = userRepository.findByUserId(userId);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (departmentId.equals(user.getDepartmentId())) {
+                user.setDepartmentId(null);
+                userRepository.save(user);
+                log.info("移除部门成员成功: departmentId={}, userId={}", departmentId, userId);
+            } else {
+                log.warn("用户不属于该部门: userId={}, departmentId={}", userId, departmentId);
+            }
+        } else {
+            throw new RuntimeException("用户不存在");
+        }
+    }
+
+    /**
      * 生成唯一的部门ID
      */
     private String generateDepartmentId() {
