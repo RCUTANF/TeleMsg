@@ -1,5 +1,6 @@
 package com.telemsg.server.controller;
 
+import com.telemsg.server.annotation.RequirePermission;
 import com.telemsg.server.dto.FileUploadResponse;
 import com.telemsg.server.entity.FileInfo;
 import com.telemsg.server.service.JwtService;
@@ -34,6 +35,7 @@ public class FileController {
     /**
      * 文件上传
      */
+    @RequirePermission(value = "file.send", description = "发送文件")
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(@RequestHeader("Authorization") String authHeader,
                                       @RequestParam("file") MultipartFile file) {
@@ -69,6 +71,7 @@ public class FileController {
     /**
      * 获取文件下载链接
      */
+    @RequirePermission(value = "file.receive", description = "接收文件")
     @GetMapping("/{fileId}/url")
     public ResponseEntity<?> getFileDownloadUrl(@RequestHeader("Authorization") String authHeader,
                                                @PathVariable String fileId) {
@@ -92,6 +95,7 @@ public class FileController {
     /**
      * 直接下载文件（作为附件）
      */
+    @RequirePermission(value = "file.receive", description = "接收文件")
     @GetMapping("/{fileId}")
     public ResponseEntity<?> downloadFile(@RequestHeader(value = "Authorization", required = false) String authHeader,
                                          @PathVariable String fileId) {
@@ -127,16 +131,15 @@ public class FileController {
     }
 
     /**
-     * 查看文件（内联显示，用于图片预览）
+     * 查看文件（内联显示，用于��片预览）
      */
+    @RequirePermission(value = "file.receive", description = "接收文件")
     @GetMapping("/{fileId}/view")
-    public ResponseEntity<?> viewFile(@RequestHeader(value = "Authorization", required = false) String authHeader,
+    public ResponseEntity<?> viewFile(@RequestHeader("Authorization") String authHeader,
                                      @PathVariable String fileId) {
         try {
-            // 如果有认证头，验证token
-            if (authHeader != null && !authHeader.isEmpty()) {
-                extractUserIdFromToken(authHeader);
-            }
+            // 验证token
+            extractUserIdFromToken(authHeader);
 
             Optional<FileInfo> fileInfoOpt = minIOService.getFileInfo(fileId);
             if (fileInfoOpt.isEmpty()) {

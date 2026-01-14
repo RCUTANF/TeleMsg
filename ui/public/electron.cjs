@@ -134,8 +134,8 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
-  // 设置应用菜单
-  createMenu();
+  // 不需要应用菜单
+  Menu.setApplicationMenu(null);
 
   app.on('activate', () => {
     // 在 macOS 上，当点击 dock 图标且没有其他窗口打开时，
@@ -163,102 +163,6 @@ app.on('web-contents-created', (event, contents) => {
   });
 });
 
-// 创建应用菜单
-function createMenu() {
-  const template = [
-    {
-      label: '文件',
-      submenu: [
-        {
-          label: '退出',
-          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
-          click: () => {
-            app.quit();
-          }
-        }
-      ]
-    },
-    {
-      label: '编辑',
-      submenu: [
-        { role: 'undo', label: '撤销' },
-        { role: 'redo', label: '重做' },
-        { type: 'separator' },
-        { role: 'cut', label: '剪切' },
-        { role: 'copy', label: '复制' },
-        { role: 'paste', label: '粘贴' },
-        { role: 'selectall', label: '全选' }
-      ]
-    },
-    {
-      label: '视图',
-      submenu: [
-        { role: 'reload', label: '重新加载' },
-        { role: 'forceReload', label: '强制重新加载' },
-        { role: 'toggleDevTools', label: '开发者工具' },
-        { type: 'separator' },
-        { role: 'resetZoom', label: '重置��放' },
-        { role: 'zoomIn', label: '放大' },
-        { role: 'zoomOut', label: '缩小' },
-        { type: 'separator' },
-        { role: 'togglefullscreen', label: '全屏' }
-      ]
-    },
-    {
-      label: '窗口',
-      submenu: [
-        { role: 'minimize', label: '最小化' },
-        { role: 'close', label: '关闭' }
-      ]
-    },
-    {
-      label: '帮助',
-      submenu: [
-        {
-          label: '关于 TeleMsg',
-          click: () => {
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: '关于 TeleMsg',
-              message: 'TeleMsg Desktop',
-              detail: 'TeleMsg 企业通讯平台桌面版\n版本: 1.0.0\n\n基于 Electron 构建的现代化企业即时通讯应用'
-            });
-          }
-        }
-      ]
-    }
-  ];
-
-  // macOS 特殊菜单处理
-  if (process.platform === 'darwin') {
-    template.unshift({
-      label: app.getName(),
-      submenu: [
-        { role: 'about', label: '关于 ' + app.getName() },
-        { type: 'separator' },
-        { role: 'services', submenu: [] },
-        { type: 'separator' },
-        { role: 'hide', label: '隐藏 ' + app.getName() },
-        { role: 'hideothers', label: '隐藏其他' },
-        { role: 'unhide', label: '全部显示' },
-        { type: 'separator' },
-        { role: 'quit', label: '退出 ' + app.getName() }
-      ]
-    });
-
-    // 窗口菜单
-    template[4].submenu = [
-      { role: 'close', label: '关闭窗口' },
-      { role: 'minimize', label: '最小化' },
-      { role: 'zoom', label: '缩放' },
-      { type: 'separator' },
-      { role: 'front', label: '全部置于前台' }
-    ];
-  }
-
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
-}
 
 // IPC 处理程序
 ipcMain.handle('get-app-version', () => {

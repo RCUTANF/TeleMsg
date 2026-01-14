@@ -159,7 +159,13 @@ export function ChatArea({
       await apiService.downloadFile(message.fileId, message.fileName);
     } catch (error) {
       console.error('Failed to download file:', error);
-      alert('文件下载失败，请稍后重试');
+
+      // 针对权限错误给出友好提示
+      if (error instanceof Error && (error.message.includes('权限') || error.message.includes('Forbidden'))) {
+        alert('⚠️ ' + error.message + '\n\n请联系管理员检查您的文件接收权限配置');
+      } else {
+        alert('文件下载失败，请稍后重试');
+      }
     }
   };
 

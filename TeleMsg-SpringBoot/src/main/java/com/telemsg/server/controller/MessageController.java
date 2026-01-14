@@ -1,5 +1,6 @@
 package com.telemsg.server.controller;
 
+import com.telemsg.server.annotation.RequirePermission;
 import com.telemsg.server.entity.Message;
 import com.telemsg.server.entity.FileInfo;
 import com.telemsg.server.dto.FileUploadResponse;
@@ -549,6 +550,7 @@ public class MessageController {
     /**
      * 发送带文件的私聊消息
      */
+    @RequirePermission(value = "file.send", description = "发送文件")
     @PostMapping("/send-file")
     public ResponseEntity<?> sendFileMessage(@RequestHeader("Authorization") String authHeader,
                                            @RequestParam("recipientId") String recipientId,
@@ -597,6 +599,7 @@ public class MessageController {
     /**
      * 发送带文件的群聊消息
      */
+    @RequirePermission(value = "file.send", description = "发送文件")
     @PostMapping("/send-group-file")
     public ResponseEntity<?> sendGroupFileMessage(@RequestHeader("Authorization") String authHeader,
                                                 @RequestParam("groupId") String groupId,

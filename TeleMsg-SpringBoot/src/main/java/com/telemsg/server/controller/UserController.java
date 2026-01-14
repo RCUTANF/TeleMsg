@@ -3,6 +3,7 @@ package com.telemsg.server.controller;
 import com.telemsg.server.entity.User;
 import com.telemsg.server.service.UserService;
 import com.telemsg.server.service.JwtService;
+import com.telemsg.server.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ public class UserController {
 
     private final UserService userService;
     private final JwtService jwtService;
+    private final DepartmentService departmentService;
 
 
 
@@ -209,6 +211,22 @@ public class UserController {
         response.setRole(user.getRole() != null ? user.getRole().name().toLowerCase() : "employee");
         response.setCreateTime(user.getCreateTime());
         response.setLastLoginTime(user.getLastLoginTime());
+
+        // 添加部门信息
+        String departmentName = "未分配";
+        if (user.getDepartmentId() != null && !user.getDepartmentId().isEmpty()) {
+            try {
+                var deptOpt = departmentService.findByDepartmentId(user.getDepartmentId());
+                if (deptOpt.isPresent()) {
+                    departmentName = deptOpt.get().getName();
+                }
+            } catch (Exception e) {
+                log.warn("获取用户部门信息失败, userId={}, departmentId={}", user.getUserId(), user.getDepartmentId(), e);
+            }
+        }
+        response.setDepartment(departmentName);
+        response.setDepartmentId(user.getDepartmentId());
+
         return response;
     }
 
@@ -283,6 +301,8 @@ public class UserController {
         private String status;
         private Boolean isAdmin;
         private String role;
+        private String department;
+        private String departmentId;
         private java.time.LocalDateTime createTime;
         private java.time.LocalDateTime lastLoginTime;
 
@@ -313,6 +333,12 @@ public class UserController {
 
         public String getRole() { return role; }
         public void setRole(String role) { this.role = role; }
+
+        public String getDepartment() { return department; }
+        public void setDepartment(String department) { this.department = department; }
+
+        public String getDepartmentId() { return departmentId; }
+        public void setDepartmentId(String departmentId) { this.departmentId = departmentId; }
 
         public java.time.LocalDateTime getCreateTime() { return createTime; }
         public void setCreateTime(java.time.LocalDateTime createTime) { this.createTime = createTime; }
@@ -348,6 +374,27 @@ public class UserController {
         response.put("avatar", user.getAvatar() != null ? user.getAvatar() : "");
         response.put("role", user.getRole() != null ? user.getRole().name().toLowerCase() : "employee");
         response.put("isAdmin", user.getIsAdmin() != null ? user.getIsAdmin() : false);
+
+        // 添加部门信息
+        String departmentName = "未分配";
+        if (user.getDepartmentId() != null && !user.getDepartmentId().isEmpty()) {
+            try {
+                var deptOpt = departmentService.findByDepartmentId(user.getDepartmentId());
+                if (deptOpt.isPresent()) {
+                    departmentName = deptOpt.get().getName();
+                }
+            } catch (Exception e) {
+                log.warn("获取用户部门信息失败, userId={}, departmentId={}", user.getUserId(), user.getDepartmentId(), e);
+            }
+        }
+        response.put("department", departmentName);
+        response.put("departmentId", user.getDepartmentId());
+
+        // 添加状态信息
+        response.put("status", user.getStatus().name().toLowerCase());
+        response.put("lastActive", user.getLastLoginTime() != null ? user.getLastLoginTime().toString() : null);
+        response.put("createdAt", user.getCreateTime() != null ? user.getCreateTime().toString() : null);
+
         return response;
     }
 

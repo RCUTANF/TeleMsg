@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { apiService, User, Role, Department } from '../services/api';
+import { apiService, User, Role, Department, Permission } from '../services/api';
 import { Toaster } from './ui/sonner';
 import { toast } from 'sonner';
 import {
@@ -32,14 +32,14 @@ import {
   Trash2, 
   Edit,
   Search,
-  BarChart3,
+  // BarChart3, // 暂时不使用，统计分析功能已屏蔽
   ArrowLeft,
   Building2,
   Lock,
-  Settings,
+  // Settings, // 暂时不使用，数据安全功能已屏蔽
   UserCog,
   FolderTree,
-  Upload,
+  // Upload, // 暂时不使用，统计分析功能已屏蔽
   Plus
 } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
@@ -84,6 +84,8 @@ interface SecurityPolicy {
 export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps) {
   const [activeMenu, setActiveMenu] = useState('users');
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all-dept');
   const [_isLoading, setIsLoading] = useState(false);
 
   // 对话框状态管理
@@ -96,6 +98,13 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
   const [deptCreateOpen, setDeptCreateOpen] = useState(false);
   const [userManagementOpen, setUserManagementOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  // 权限矩阵状态
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('DIRECTOR');
+  const [rolePermissions, setRolePermissions] = useState<string[]>([]);
+  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
 
   // 安全策略状态
   const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy>({
@@ -174,6 +183,31 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     }
   };
 
+  // 加载权限数据
+  const loadPermissions = async () => {
+    setIsLoadingPermissions(true);
+    try {
+      const [permissions, rolePerms] = await Promise.all([
+        apiService.getAllPermissions(),
+        apiService.getRolePermissions(selectedRoleId)
+      ]);
+      setAllPermissions(permissions);
+      setRolePermissions(rolePerms);
+    } catch (error) {
+      console.error('Failed to load permissions:', error);
+      toast.error('加载权限数据失败');
+    } finally {
+      setIsLoadingPermissions(false);
+    }
+  };
+
+  // 当选择的角色改变时，重新加载权限
+  useEffect(() => {
+    if (activeMenu === 'permissions') {
+      loadPermissions();
+    }
+  }, [selectedRoleId, activeMenu]);
+
   // 用户管理操作
   const handleAddUser = () => {
     setSelectedUser(null);
@@ -211,55 +245,88 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
     }
   };
 
-
-  // 权限项定义
-  const permissionCategories = {
-    '文件管理': [
-      { id: 'file.send', name: '发送文件', description: '上传并发送文件' },
-      { id: 'file.receive', name: '接收文件', description: '接收并下载文件' },
-    ],
-    '音视频通话': [
-      { id: 'call.voice', name: '语音通话', description: '发起语音通话' },
-      { id: 'call.video', name: '视频通话', description: '发起视频通话' },
-      { id: 'call.screen', name: '屏幕共享', description: '共享屏幕内容' },
-      { id: 'call.record', name: '通话录制', description: '录制通话内容' },
-    ],
-    '群组功能': [
-      { id: 'group.create', name: '创建群组', description: '创建新的群组' },
-      { id: 'group.manage', name: '管理群组', description: '管理群组设置和成员' },
-    ],
-    '用户管理': [
-      { id: 'user.create', name: '创建用户', description: '添加新用户' },
-      { id: 'user.edit', name: '编辑用户', description: '修改用户信息' },
-      { id: 'user.delete', name: '删除用户', description: '删除用户账号' },
-    ],
+  // 权限矩阵操作
+  const handlePermissionToggle = (permissionCode: string) => {
+    setRolePermissions(prev => {
+      if (prev.includes(permissionCode)) {
+        return prev.filter(p => p !== permissionCode);
+      } else {
+        return [...prev, permissionCode];
+      }
+    });
   };
+
+  const handleSavePermissions = async () => {
+    setIsSavingPermissions(true);
+    try {
+      await apiService.updateRolePermissions(selectedRoleId, rolePermissions);
+      toast.success('权限配置保存成功');
+    } catch (error: any) {
+      console.error('保存权限配置失败:', error);
+      toast.error(error.message || '保存权限配置失败');
+    } finally {
+      setIsSavingPermissions(false);
+    }
+  };
+
+  const handleCancelPermissions = () => {
+    // 重新加载权限，恢复到保存的状态
+    loadPermissions();
+  };
+
+
+  // 权限项定义 - 动态从 allPermissions 生成分类
+  const permissionCategories = allPermissions.reduce((acc, perm) => {
+    if (!acc[perm.category]) {
+      acc[perm.category] = [];
+    }
+    acc[perm.category].push({
+      id: perm.id,
+      name: perm.name,
+      description: perm.description
+    });
+    return acc;
+  }, {} as Record<string, Array<{ id: string; name: string; description: string }>>);
 
 
   const statusColors = {
-    active: 'bg-green-100 text-green-700 border-green-200',
-    inactive: 'bg-gray-100 text-gray-700 border-gray-200',
-    suspended: 'bg-red-100 text-red-700 border-red-200'
+    online: 'bg-green-100 text-green-700 border-green-200',
+    offline: 'bg-gray-100 text-gray-700 border-gray-200',
+    busy: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    away: 'bg-orange-100 text-orange-700 border-orange-200'
   };
 
   const statusLabels = {
-    active: '正常',
-    inactive: '离线',
-    suspended: '已停用'
+    online: '在线',
+    offline: '离线',
+    busy: '忙碌',
+    away: '离开'
   };
 
-  const filteredUsers = users.filter(user => 
-    user.name.includes(searchQuery) || 
-    user.username.includes(searchQuery) ||
-    (user.department?.includes(searchQuery) ?? false)
-  );
+  const filteredUsers = users.filter(user => {
+    // Search query filter
+    const matchesSearch = user.name.includes(searchQuery) ||
+                         user.username.includes(searchQuery) ||
+                         (user.department?.includes(searchQuery) ?? false);
+
+    // Status filter
+    const matchesStatus = statusFilter === 'all' ||
+                         (statusFilter === 'active' && (user.status === 'online' || user.status === 'busy' || user.status === 'away')) ||
+                         (statusFilter === 'inactive' && user.status === 'offline');
+
+    // Department filter
+    const matchesDepartment = departmentFilter === 'all-dept' ||
+                             user.department === departmentFilter;
+
+    return matchesSearch && matchesStatus && matchesDepartment;
+  });
 
   const menuItems = [
     { id: 'users', icon: Users, label: '用户管理', count: users.length },
     { id: 'permissions', icon: UserCog, label: '权限矩阵' },
     { id: 'departments', icon: Building2, label: '组织架构', count: departments.length },
     { id: 'security', icon: Lock, label: '安全策略' },
-    { id: 'statistics', icon: BarChart3, label: '统计分析' },
+    // { id: 'statistics', icon: BarChart3, label: '统计分析' }, // 暂时屏蔽，待开发
   ];
 
   return (
@@ -354,26 +421,27 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                             onChange={(e) => setSearchQuery(e.target.value)}
                           />
                         </div>
-                        <Select defaultValue="all">
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
                           <SelectTrigger className="w-40">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">全部状态</SelectItem>
-                            <SelectItem value="active">正常</SelectItem>
+                            <SelectItem value="active">在线</SelectItem>
                             <SelectItem value="inactive">离线</SelectItem>
-                            <SelectItem value="suspended">已停用</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Select defaultValue="all-dept">
+                        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                           <SelectTrigger className="w-40">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all-dept">全部部门</SelectItem>
-                            <SelectItem value="tech">技术部</SelectItem>
-                            <SelectItem value="market">市场部</SelectItem>
-                            <SelectItem value="hr">人力资源部</SelectItem>
+                            {departments.map((dept) => (
+                              <SelectItem key={dept.id} value={dept.name}>
+                                {dept.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -458,7 +526,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                           <CardTitle>角色权限配置</CardTitle>
                           <CardDescription>系统包含三种固定角色：系统管理员、部门主管和普通员工</CardDescription>
                         </div>
-                        <Select defaultValue="2">
+                        <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
                           <SelectTrigger className="w-48">
                             <SelectValue placeholder="选择角色" />
                           </SelectTrigger>
@@ -473,39 +541,69 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="max-h-[70vh] border rounded-lg overflow-x-auto overflow-y-auto">
-                        <div className="p-4 min-w-full">
-                          <div className="space-y-6 pb-4">
-                            {Object.entries(permissionCategories).map(([category, permissions]) => (
-                              <div key={category} className="space-y-3">
-                                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                                  <FolderTree className="h-4 w-4 text-purple-600" />
-                                  {category}
-                                </h3>
-                                <div className="ml-6 space-y-3">
-                                  {permissions.map((perm) => (
-                                    <div key={perm.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
-                                      <div className="flex items-center gap-3 flex-1">
-                                        <Checkbox id={perm.id} defaultChecked={Math.random() > 0.3} />
-                                        <div>
-                                          <Label htmlFor={perm.id} className="font-medium cursor-pointer">
-                                            {perm.name}
-                                          </Label>
-                                          <p className="text-xs text-gray-500">{perm.description}</p>
-                                        </div>
+                      {isLoadingPermissions ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="text-gray-500">加载权限配置中...</div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="max-h-[70vh] border rounded-lg overflow-x-auto overflow-y-auto">
+                            <div className="p-4 min-w-full">
+                              <div className="space-y-6 pb-4">
+                                {Object.entries(permissionCategories).length === 0 ? (
+                                  <div className="text-center py-8 text-gray-500">
+                                    暂无权限数据
+                                  </div>
+                                ) : (
+                                  Object.entries(permissionCategories).map(([category, permissions]) => (
+                                    <div key={category} className="space-y-3">
+                                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                        <FolderTree className="h-4 w-4 text-purple-600" />
+                                        {category}
+                                      </h3>
+                                      <div className="ml-6 space-y-3">
+                                        {permissions.map((perm) => (
+                                          <div key={perm.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded">
+                                            <div className="flex items-center gap-3 flex-1">
+                                              <Checkbox
+                                                id={perm.id}
+                                                checked={rolePermissions.includes(perm.id)}
+                                                onCheckedChange={() => handlePermissionToggle(perm.id)}
+                                              />
+                                              <div>
+                                                <Label htmlFor={perm.id} className="font-medium cursor-pointer">
+                                                  {perm.name}
+                                                </Label>
+                                                <p className="text-xs text-gray-500">{perm.description}</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
+                                  ))
+                                )}
                               </div>
-                            ))}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2 pt-4 border-t">
-                        <Button variant="outline">取消</Button>
-                        <Button className="bg-purple-600 hover:bg-purple-700">保存权限配置</Button>
-                      </div>
+                          <div className="flex justify-end gap-2 pt-4 border-t">
+                            <Button
+                              variant="outline"
+                              onClick={handleCancelPermissions}
+                              disabled={isSavingPermissions}
+                            >
+                              取消
+                            </Button>
+                            <Button
+                              className="bg-purple-600 hover:bg-purple-700"
+                              onClick={handleSavePermissions}
+                              disabled={isSavingPermissions}
+                            >
+                              {isSavingPermissions ? '保存中...' : '保存权限配置'}
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -664,7 +762,8 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                       </CardContent>
                     </Card>
 
-                    <Card>
+                    {/* 登录策略 - 暂时屏蔽，待开发 */}
+                    {/* <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Shield className="h-5 w-5 text-purple-600" />
@@ -730,9 +829,10 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                           />
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
 
-                    <Card>
+                    {/* 内容审核 - 暂时屏蔽，待开发 */}
+                    {/* <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Shield className="h-5 w-5 text-purple-600" />
@@ -780,9 +880,10 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                           />
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
 
-                    <Card>
+                    {/* 数据安全 - 暂时屏蔽，待开发 */}
+                    {/* <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Settings className="h-5 w-5 text-purple-600" />
@@ -837,7 +938,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                           </Select>
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
                   </div>
 
                   <div className="flex justify-end">
@@ -859,8 +960,8 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
               )}
 
 
-              {/* 统计分析 */}
-              {activeMenu === 'statistics' && (
+              {/* 统计分析 - 暂时屏蔽，待开发 */}
+              {/* {activeMenu === 'statistics' && (
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">统计分析</h2>
@@ -983,7 +1084,7 @@ export function AdminCenter({ onClose, onSaveSecurityPolicy }: AdminCenterProps)
                     </Card>
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
           </ScrollArea>
         </main>
