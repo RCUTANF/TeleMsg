@@ -40,6 +40,7 @@ export function VideoCallDialog({
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isConnecting, setIsConnecting] = useState(true);
+  const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -60,11 +61,33 @@ export function VideoCallDialog({
 
         console.log(`🎬 Initializing call: roomId=${roomId}, userId=${userId}, contactId=${contactId}`);
 
+        // 🔥 关键：在加入房间之前先设置回调
+        console.log('🔧 Setting up remote stream callback...');
+        mediasoupService.current.onRemoteStream((remoteUserId, stream) => {
+          console.log(`📺 Remote stream received from user: ${remoteUserId}`);
+          console.log(`📊 Stream has ${stream.getTracks().length} tracks:`,
+            stream.getTracks().map(t => `${t.kind} (${t.id})`));
+
+          if (remoteVideoRef.current) {
+            console.log('✅ Setting remote video srcObject');
+            remoteVideoRef.current.srcObject = stream;
+            setHasRemoteVideo(true);
+
+            // 确保视频播放
+            remoteVideoRef.current.play().catch(err => {
+              console.error('❌ Failed to play remote video:', err);
+            });
+          } else {
+            console.warn('⚠️ Remote video ref is null!');
+          }
+        });
+
         // 加入房间
         await mediasoupService.current.joinRoom(roomId, userId);
 
         // 设置状态回调
         mediasoupService.current.onConnectionStateChange((state) => {
+          console.log(`🔌 Connection state changed: ${state}`);
           if (state === 'connected') {
             setIsConnecting(false);
           } else if (state === 'disconnected') {
@@ -72,18 +95,8 @@ export function VideoCallDialog({
           }
         });
 
-        // 设置远程流回调
-        mediasoupService.current.onRemoteStream((_userId, stream) => {
-          console.log('📺 Received remote stream:', stream.getTracks().map(t => t.kind));
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = stream;
-          }
-        });
-
-        // 🔥 添加短暂延迟，让远程流事件先处理，避免设备冲突
-        await new Promise(resolve => setTimeout(resolve, 500));
-
         // 开始发送媒体流
+        console.log('🎥 Starting to produce local media...');
         const localStream = await mediasoupService.current.startProducing(
           true, // audio
           !isVoiceOnly // video
@@ -91,7 +104,11 @@ export function VideoCallDialog({
 
         // 设置本地视频
         if (localVideoRef.current && localStream) {
+          console.log('✅ Setting local video srcObject');
           localVideoRef.current.srcObject = localStream;
+          localVideoRef.current.play().catch(err => {
+            console.error('❌ Failed to play local video:', err);
+          });
         }
 
         setIsConnecting(false);
@@ -104,14 +121,8 @@ export function VideoCallDialog({
         }, 1000);
 
       } catch (error) {
-        console.error('Failed to initialize call:', error);
+        console.error('❌ Failed to initialize call:', error);
         setIsConnecting(false);
-        // 显示错误提示
-        if (error instanceof Error) {
-          if (error.message.includes('Device in use')) {
-            console.error('❌ 摄像头或麦克风正在被其他应用使用');
-          }
-        }
       }
     };
 
@@ -125,8 +136,9 @@ export function VideoCallDialog({
       setIsConnecting(true);
       setIsMuted(false);
       setIsVideoOff(false);
+      setHasRemoteVideo(false);
     };
-  }, [open, contactId, isVoiceOnly]);
+  }, [open, contactId, isVoiceOnly, callId]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -159,14 +171,29 @@ export function VideoCallDialog({
         <div className="relative h-[600px] bg-gradient-to-br from-gray-800 to-gray-900">
           {/* 视频区域 */}
           {!isVoiceOnly && !isVideoOff ? (
-            <div className="w-full h-full flex items-center justify-center">
+            <div className="w-full h-full flex items-center justify-center relative">
               {/* 远程视频 */}
               <video
                 ref={remoteVideoRef}
                 autoPlay
                 playsInline
                 className="w-full h-full object-cover"
+                style={{ display: hasRemoteVideo ? 'block' : 'none' }}
               />
+
+              {/* 等待远程视频的占位符 */}
+              {!hasRemoteVideo && (
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                  <div className="text-center">
+                    <Avatar className="h-32 w-32 mx-auto mb-4 ring-4 ring-white/10">
+                      <AvatarImage src={contactAvatar} alt={contactName} />
+                      <AvatarFallback className="text-4xl">{contactName[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="text-white text-xl font-semibold">{contactName}</div>
+                    <div className="text-gray-400 mt-2">等待对方的视频...</div>
+                  </div>
+                </div>
+              )}
 
               {/* 本地视频预览 */}
               <div className="absolute top-4 right-4 w-48 h-36 bg-gray-800 rounded-lg overflow-hidden shadow-xl border border-gray-700">

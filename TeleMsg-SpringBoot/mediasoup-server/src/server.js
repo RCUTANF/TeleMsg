@@ -50,7 +50,7 @@ io.on('connection', (socket) => {
   // Join room (call session)
   socket.on('join-room', async ({ roomId, userId }, callback) => {
     try {
-      console.log(`User ${userId} joining room ${roomId}`);
+      console.log(`👤 User ${userId} (socket: ${socket.id}) joining room ${roomId}`);
       socket.join(roomId);
 
       // Get or create router for this room
@@ -58,21 +58,26 @@ io.on('connection', (socket) => {
 
       // 🔥 重要: 获取房间内已存在的所有生产者，并通知新加入的用户
       const existingProducers = mediasoupService.getProducersByRoom(roomId);
-      console.log(`Room ${roomId} has ${existingProducers.length} existing producers`);
+      console.log(`📊 Room ${roomId} has ${existingProducers.length} existing producers`);
 
       callback({ success: true });
 
       // 向新用户发送已存在的生产者信息
-      existingProducers.forEach(({ producerId, kind }) => {
-        console.log(`Notifying new user ${userId} about existing producer ${producerId} (${kind})`);
-        socket.emit('new-producer', {
-          producerId,
-          userId: 'existing-user', // 实际应该存储并返回真实的userId
-          kind,
+      if (existingProducers.length > 0) {
+        console.log(`📤 Notifying new user ${userId} about existing producers...`);
+        existingProducers.forEach(({ producerId, kind }) => {
+          console.log(`  ➡️ Sending producer ${producerId} (${kind}) to socket ${socket.id}`);
+          socket.emit('new-producer', {
+            producerId,
+            userId: 'existing-user', // 实际应该存储并返回真实的userId
+            kind,
+          });
         });
-      });
+      } else {
+        console.log(`ℹ️ No existing producers in room ${roomId}`);
+      }
     } catch (error) {
-      console.error('Error joining room:', error);
+      console.error('❌ Error joining room:', error);
       callback({ success: false, error: error.message });
     }
   });
@@ -112,6 +117,11 @@ io.on('connection', (socket) => {
 
       // Notify other users in the room
       const roomId = mediasoupService.getRoomIdByTransport(transportId);
+      console.log(`📢 Notifying room ${roomId} about new producer ${producer.id} (${kind})`);
+
+      const socketsInRoom = await io.in(roomId).fetchSockets();
+      console.log(`  👥 Room has ${socketsInRoom.length} sockets (including sender)`);
+
       socket.to(roomId).emit('new-producer', {
         producerId: producer.id,
         userId: socket.id,
@@ -120,7 +130,7 @@ io.on('connection', (socket) => {
 
       callback({ id: producer.id });
     } catch (error) {
-      console.error('Error producing:', error);
+      console.error('❌ Error producing:', error);
       callback({ error: error.message });
     }
   });

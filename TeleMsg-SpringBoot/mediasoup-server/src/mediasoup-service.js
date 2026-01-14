@@ -119,9 +119,10 @@ export class MediasoupService {
     const roomId = this.transportToRoom.get(transportId);
     if (roomId) {
       this.producerToRoom.set(producer.id, roomId);
+      console.log(`✅ Producer ${producer.id} created (${kind}) in room ${roomId}`);
+    } else {
+      console.warn(`⚠️ No room found for transport ${transportId}`);
     }
-
-    console.log(`Producer ${producer.id} created (${kind}) in room ${roomId}`);
 
     return producer;
   }

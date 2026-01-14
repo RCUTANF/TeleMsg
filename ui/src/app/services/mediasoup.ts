@@ -1,7 +1,10 @@
 import { io, Socket } from 'socket.io-client';
 import * as mediasoupClient from 'mediasoup-client';
-import { Device } from 'mediasoup-client';
-import type { Transport, Producer, Consumer } from 'mediasoup-client/lib/types';
+import { Device, types } from 'mediasoup-client';
+
+type Transport = types.Transport;
+type Producer = types.Producer;
+type Consumer = types.Consumer;
 
 interface MediasoupConfig {
   serverUrl: string;
@@ -163,56 +166,64 @@ export class MediasoupService {
       throw new Error('Not connected to room');
     }
 
-    try {
-      // 创建接收传输通道
-      if (!this.recvTransport) {
-        const transportInfo = await this.socketRequest('create-transport', {
-          roomId: this.roomId,
-          direction: 'recv',
-        });
+    console.log(`🎯 Starting to consume producer: ${producerId}`);
 
-        this.recvTransport = this.device.createRecvTransport(transportInfo);
-        this.setupRecvTransport();
-      }
-
-      // 消费媒体流
-      const consumerInfo = await this.socketRequest('consume', {
-        transportId: this.recvTransport.id,
-        producerId,
-        rtpCapabilities: this.device.rtpCapabilities,
+    // 创建接收传输通道
+    if (!this.recvTransport) {
+      console.log('🔧 Creating receive transport...');
+      const transportInfo = await this.socketRequest('create-transport', {
+        roomId: this.roomId,
+        direction: 'recv',
       });
 
-      const consumer = await this.recvTransport.consume(consumerInfo);
-      this.consumers.set(consumer.id, consumer);
-
-      // 恢复消费者
-      await this.socketRequest('resume-consumer', { consumerId: consumer.id });
-
-      // 使用固定的 remoteStream，而不是每个 producer 一个流
-      const remoteUserId = 'remote-user'; // 统一的远程用户标识
-      let remoteStream = this.remoteStreams.get(remoteUserId);
-      if (!remoteStream) {
-        remoteStream = new MediaStream();
-        this.remoteStreams.set(remoteUserId, remoteStream);
-      }
-
-      // 添加track到流（确保不会重复添加）
-      const existingTrack = remoteStream.getTracks().find(t => t.kind === consumer.track.kind);
-      if (existingTrack) {
-        remoteStream.removeTrack(existingTrack);
-      }
-      remoteStream.addTrack(consumer.track);
-
-      // 触发回调
-      if (this.onRemoteStreamCallback) {
-        this.onRemoteStreamCallback(remoteUserId, remoteStream);
-      }
-
-      console.log(`✅ Consumer created for producer: ${producerId} (${consumer.kind})`);
-    } catch (error) {
-      console.error('Failed to consume producer:', producerId, error);
-      throw error;
+      this.recvTransport = this.device.createRecvTransport(transportInfo);
+      this.setupRecvTransport();
+      console.log('✅ Receive transport created');
     }
+
+    console.log('📡 Requesting to consume producer...');
+    // 消费媒体流
+    const consumerInfo = await this.socketRequest('consume', {
+      transportId: this.recvTransport.id,
+      producerId,
+      rtpCapabilities: this.device.rtpCapabilities,
+    });
+
+    console.log('🎬 Creating consumer with info:', consumerInfo);
+    const consumer = await this.recvTransport.consume(consumerInfo);
+    this.consumers.set(consumer.id, consumer);
+
+    console.log('▶️ Resuming consumer...');
+    // 恢复消费者
+    await this.socketRequest('resume-consumer', { consumerId: consumer.id });
+
+    // 创建或获取远程流
+    // 使用更好的用户识别方式
+    const remoteUserId = consumerInfo.appData?.userId || producerId.split('_')[0] || 'remote';
+    console.log(`👤 Remote user ID: ${remoteUserId}, Kind: ${consumer.kind}`);
+
+    let remoteStream = this.remoteStreams.get(remoteUserId);
+    if (!remoteStream) {
+      console.log(`🆕 Creating new remote stream for user: ${remoteUserId}`);
+      remoteStream = new MediaStream();
+      this.remoteStreams.set(remoteUserId, remoteStream);
+    }
+
+    // 添加track到流
+    console.log(`➕ Adding ${consumer.kind} track to remote stream`);
+    remoteStream.addTrack(consumer.track);
+
+    console.log(`📊 Remote stream now has ${remoteStream.getTracks().length} tracks`);
+
+    // 触发回调
+    if (this.onRemoteStreamCallback) {
+      console.log(`📢 Calling remote stream callback for user: ${remoteUserId}`);
+      this.onRemoteStreamCallback(remoteUserId, remoteStream);
+    } else {
+      console.warn('⚠️ No remote stream callback registered!');
+    }
+
+    console.log(`✅ Consumer created for producer: ${producerId} (${consumer.kind})`);
   }
 
   /**
@@ -260,18 +271,21 @@ export class MediasoupService {
 
     this.recvTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
       try {
+        console.log('🔗 Connecting recv transport...');
         await this.socketRequest('connect-transport', {
           transportId: this.recvTransport!.id,
           dtlsParameters,
         });
+        console.log('✅ Recv transport connected');
         callback();
       } catch (error) {
+        console.error('❌ Failed to connect recv transport:', error);
         errback(error as Error);
       }
     });
 
     this.recvTransport.on('connectionstatechange', (state: string) => {
-      console.log('Recv transport state:', state);
+      console.log('🔌 Recv transport state:', state);
     });
   }
 
@@ -283,14 +297,24 @@ export class MediasoupService {
 
     // 新的生产者加入
     this.socket.on('new-producer', async ({ producerId, userId, kind }: any) => {
-      console.log(`New producer: ${producerId} from user ${userId} (${kind})`);
-      await this.startConsuming(producerId);
+      console.log(`📺 New producer: ${producerId} from user ${userId} (${kind})`);
+      try {
+        await this.startConsuming(producerId);
+        console.log(`✅ Successfully consuming producer ${producerId}`);
+      } catch (error) {
+        console.error(`❌ Failed to consume producer ${producerId}:`, error);
+      }
     });
 
     // 连接断开
     this.socket.on('disconnect', () => {
       console.log('Disconnected from server');
       this.notifyStateChange('disconnected');
+    });
+
+    // 添加错误处理
+    this.socket.on('error', (error: any) => {
+      console.error('❌ Socket error:', error);
     });
   }
 

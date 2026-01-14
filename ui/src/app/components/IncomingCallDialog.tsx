@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogTitle,
-  DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -31,24 +29,16 @@ export function IncomingCallDialog({
   useEffect(() => {
     if (open) {
       setIsRinging(true);
-      // 尝试播放铃声，如果文件不存在则静默失败
-      try {
-        const audio = new Audio('/ringtone.mp3');
-        audio.loop = true;
-        audio.play().catch(err => {
-          // 铃声播放失败是可以接受的（文件可能不存在或浏览器限制）
-          console.log('Ringtone playback skipped:', err.message);
-        });
+      // 播放铃声
+      const audio = new Audio('/ringtone.mp3');
+      audio.loop = true;
+      audio.play().catch(err => console.log('Cannot play ringtone:', err));
 
-        return () => {
-          audio.pause();
-          audio.currentTime = 0;
-          setIsRinging(false);
-        };
-      } catch (error) {
-        console.log('Ringtone not available');
-        return () => setIsRinging(false);
-      }
+      return () => {
+        audio.pause();
+        audio.currentTime = 0;
+        setIsRinging(false);
+      };
     }
   }, [open]);
 
