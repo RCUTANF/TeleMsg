@@ -206,10 +206,40 @@ function App() {
       // 讨论空间也是一个群聊，使用群消息接口
       const messagesData = await apiService.getGroupMessages(spaceId);
 
-      setMessagesByDiscussionSpace(prev => ({
-        ...prev,
-        [spaceId]: messagesData
-      }));
+      // 合并服务器消息和本地实时消息，去重
+      setMessagesByDiscussionSpace(prev => {
+        const existingMessages = prev[spaceId] || [];
+
+        // 创建消息ID集合，用于去重
+        const messageIdSet = new Set<string>();
+        const mergedMessages: Message[] = [];
+
+        // 首先添加服务器消息（优先级更高）
+        messagesData.forEach((msg: Message) => {
+          if (!messageIdSet.has(msg.id)) {
+            messageIdSet.add(msg.id);
+            mergedMessages.push(msg);
+          }
+        });
+
+        // 然后添加本地实时消息中不重复的部分
+        existingMessages.forEach(msg => {
+          if (!messageIdSet.has(msg.id)) {
+            messageIdSet.add(msg.id);
+            mergedMessages.push(msg);
+          }
+        });
+
+        // 按时间戳排序
+        mergedMessages.sort((a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        return {
+          ...prev,
+          [spaceId]: mergedMessages
+        };
+      });
 
       console.log('讨论空间消息加载成功:', messagesData.length, '条');
     } catch (error) {
@@ -576,10 +606,40 @@ function App() {
         messagesData = await apiService.getMessages(contactId);
       }
 
-      setMessagesByContact(prev => ({
-        ...prev,
-        [contactId]: messagesData
-      }));
+      // 合并服务器消息和本地实时消息，去重
+      setMessagesByContact(prev => {
+        const existingMessages = prev[contactId] || [];
+
+        // 创建消息ID集合，用于去重
+        const messageIdSet = new Set<string>();
+        const mergedMessages: Message[] = [];
+
+        // 首先添加服务器消息（优先级更高，因为是持久化的）
+        messagesData.forEach((msg: Message) => {
+          if (!messageIdSet.has(msg.id)) {
+            messageIdSet.add(msg.id);
+            mergedMessages.push(msg);
+          }
+        });
+
+        // 然后添加本地实时消息中不重复的部分
+        existingMessages.forEach(msg => {
+          if (!messageIdSet.has(msg.id)) {
+            messageIdSet.add(msg.id);
+            mergedMessages.push(msg);
+          }
+        });
+
+        // 按时间戳排序
+        mergedMessages.sort((a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        return {
+          ...prev,
+          [contactId]: mergedMessages
+        };
+      });
     } catch (error) {
       console.error('Failed to load messages:', error);
     }
@@ -634,29 +694,18 @@ function App() {
       const isDiscussionSpace = currentSpaces.some(space => space.id === conversationId);
 
       if (isDiscussionSpace) {
-        // 讨论空间的消息
-        setSelectedDiscussionSpaceId(currentSelectedSpace => {
-          if (conversationId === currentSelectedSpace) {
-            // 如果正在查看这个讨论空间，添加到讨论空间的消息列表
-            setMessagesByDiscussionSpace(prev => ({
-              ...prev,
-              [conversationId]: [...(prev[conversationId] || []), message]
-            }));
-          }
-          return currentSelectedSpace;
-        });
+        // 讨论空间的消息 - 始终添加到消息列表中
+        setMessagesByDiscussionSpace(prev => ({
+          ...prev,
+          [conversationId]: [...(prev[conversationId] || []), message]
+        }));
         // 注意：讨论空间的消息不更新父群聊的最后消息
       } else {
-        // 主群聊或私聊消息
-        setSelectedContactId(currentSelectedContact => {
-          if (conversationId === currentSelectedContact) {
-            setMessagesByContact(prev => ({
-              ...prev,
-              [conversationId]: [...(prev[conversationId] || []), message]
-            }));
-          }
-          return currentSelectedContact;
-        });
+        // 主群聊或私聊消息 - 始终添加到消息列表中，无论是否正在查看
+        setMessagesByContact(prev => ({
+          ...prev,
+          [conversationId]: [...(prev[conversationId] || []), message]
+        }));
 
         // 更新联系人的最后消息（只有当消息不是当前用户发送的时候才更新）
         setCurrentUser(user => {
