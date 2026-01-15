@@ -66,6 +66,229 @@ function applyProxySettings(proxyConfig) {
   }
 }
 
+// 创建应用菜单
+function createApplicationMenu() {
+  const template = [
+    {
+      label: '文件',
+      submenu: [
+        {
+          label: '新建',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => {
+            // 这里可以添加新建功能
+            console.log('新建');
+          }
+        },
+        {
+          label: '打开',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => {
+            // 这里可以添加打开功能
+            console.log('打开');
+          }
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: '退出',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
+          click: () => {
+            app.quit();
+          }
+        }
+      ]
+    },
+    {
+      label: '编辑',
+      submenu: [
+        {
+          label: '撤销',
+          accelerator: 'CmdOrCtrl+Z',
+          role: 'undo'
+        },
+        {
+          label: '重做',
+          accelerator: 'Shift+CmdOrCtrl+Z',
+          role: 'redo'
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: '剪切',
+          accelerator: 'CmdOrCtrl+X',
+          role: 'cut'
+        },
+        {
+          label: '复制',
+          accelerator: 'CmdOrCtrl+C',
+          role: 'copy'
+        },
+        {
+          label: '粘贴',
+          accelerator: 'CmdOrCtrl+V',
+          role: 'paste'
+        },
+        {
+          label: '全选',
+          accelerator: 'CmdOrCtrl+A',
+          role: 'selectAll'
+        }
+      ]
+    },
+    {
+      label: '查看',
+      submenu: [
+        {
+          label: '重新加载',
+          accelerator: 'CmdOrCtrl+R',
+          click: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.reload();
+          }
+        },
+        {
+          label: '强制重新加载',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
+          }
+        },
+        {
+          label: '开发者工具',
+          accelerator: process.platform === 'darwin' ? 'Alt+Cmd+I' : 'Ctrl+Shift+I',
+          click: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.webContents.toggleDevTools();
+          }
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: '实际大小',
+          accelerator: 'CmdOrCtrl+0',
+          click: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.webContents.zoomLevel = 0;
+          }
+        },
+        {
+          label: '放大',
+          accelerator: 'CmdOrCtrl+Plus',
+          click: (item, focusedWindow) => {
+            if (focusedWindow) {
+              const currentZoom = focusedWindow.webContents.zoomLevel;
+              focusedWindow.webContents.zoomLevel = currentZoom + 0.5;
+            }
+          }
+        },
+        {
+          label: '缩小',
+          accelerator: 'CmdOrCtrl+-',
+          click: (item, focusedWindow) => {
+            if (focusedWindow) {
+              const currentZoom = focusedWindow.webContents.zoomLevel;
+              focusedWindow.webContents.zoomLevel = currentZoom - 0.5;
+            }
+          }
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: '切换全屏',
+          accelerator: process.platform === 'darwin' ? 'Ctrl+Cmd+F' : 'F11',
+          click: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.setFullScreen(!focusedWindow.isFullScreen());
+          }
+        }
+      ]
+    },
+    {
+      label: '窗口',
+      submenu: [
+        {
+          label: '最小化',
+          accelerator: 'CmdOrCtrl+M',
+          role: 'minimize'
+        },
+        {
+          label: '关闭',
+          accelerator: 'CmdOrCtrl+W',
+          role: 'close'
+        }
+      ]
+    },
+    {
+      label: '帮助',
+      submenu: [
+        {
+          label: '关于 TeleMsg',
+          click: () => {
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: '关于 TeleMsg',
+              message: 'TeleMsg',
+              detail: `版本: ${app.getVersion()}\n基于 Electron 构建的即时通讯应用`
+            });
+          }
+        }
+      ]
+    }
+  ];
+
+  // 在 macOS 上调整菜单
+  if (process.platform === 'darwin') {
+    template.unshift({
+      label: app.getName(),
+      submenu: [
+        {
+          label: `关于 ${app.getName()}`,
+          role: 'about'
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: '服务',
+          role: 'services',
+          submenu: []
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: `隐藏 ${app.getName()}`,
+          accelerator: 'Command+H',
+          role: 'hide'
+        },
+        {
+          label: '隐藏其他',
+          accelerator: 'Command+Shift+H',
+          role: 'hideothers'
+        },
+        {
+          label: '显示全部',
+          role: 'unhide'
+        },
+        {
+          type: 'separator'
+        },
+        {
+          label: '退出',
+          accelerator: 'Command+Q',
+          click: () => {
+            app.quit();
+          }
+        }
+      ]
+    });
+  }
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
 function createWindow() {
   // 创建浏览器窗口
   mainWindow = new BrowserWindow({
@@ -73,6 +296,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    autoHideMenuBar: true, // 隐藏菜单栏但保留快捷键
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -134,8 +358,8 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
-  // 不需要应用菜单
-  Menu.setApplicationMenu(null);
+  // 设置应用菜单但隐藏菜单栏
+  createApplicationMenu();
 
   app.on('activate', () => {
     // 在 macOS 上，当点击 dock 图标且没有其他窗口打开时，
