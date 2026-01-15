@@ -91,6 +91,7 @@ export function ChatArea({
   const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
   const [selectedNewMembers, setSelectedNewMembers] = useState<string[]>([]);
   const [currentUserInfo, setCurrentUserInfo] = useState<{ id: string; name: string; avatar: string } | null>(null);
+  const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,6 +120,50 @@ export function ChatArea({
       setReferenceableMessages(mainGroupMessages);
     }
   }, [mainGroupMessages, contact, selectedDiscussionSpaceId]);
+
+  // 当联系人切换时，清理旧的图片 URLs
+  useEffect(() => {
+    // 清空状态，强制重新加载
+    setImageUrls(new Map());
+
+    return () => {
+      // 联系人切换时，释放所有 Blob URLs
+      imageUrls.forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [contact?.id]);
+
+  // Load authenticated image URLs
+  useEffect(() => {
+    const loadImageUrls = async () => {
+      const newImageUrls = new Map<string, string>();
+
+      for (const message of messages) {
+        if (message.type === 'image' && message.fileUrl) {
+          // 检查是否已经加载过
+          if (!imageUrls.has(message.id)) {
+            try {
+              const blobUrl = await apiService.getAuthenticatedImageUrl(message.fileUrl);
+              newImageUrls.set(message.id, blobUrl);
+            } catch (error) {
+              console.error('Failed to load image for message:', message.id, error);
+            }
+          }
+        }
+      }
+
+      if (newImageUrls.size > 0) {
+        setImageUrls(prev => new Map([...prev, ...newImageUrls]));
+      }
+    };
+
+    if (messages.length > 0) {
+      loadImageUrls();
+    }
+  }, [messages, contact?.id]);
 
 
   useEffect(() => {
@@ -511,7 +556,7 @@ export function ChatArea({
                       }`}
                     >
                       <img
-                        src={apiService.getAbsoluteFileUrl(message.fileUrl)}
+                        src={imageUrls.get(message.id) || apiService.getAbsoluteFileUrl(undefined)}
                         alt={message.fileName}
                         className="max-w-xs rounded-lg"
                         onError={(e) => {
@@ -755,7 +800,7 @@ export function ChatArea({
                         {message.type === 'image' && (
                           <div className="mt-2">
                             <img
-                                src={apiService.getAbsoluteFileUrl(message.fileUrl)}
+                                src={imageUrls.get(message.id) || apiService.getAbsoluteFileUrl(undefined)}
                                 alt={message.fileName}
                                 className="max-w-full h-auto rounded"
                                 onError={(e) => {

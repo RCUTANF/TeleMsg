@@ -539,6 +539,43 @@ class ApiService {
     window.URL.revokeObjectURL(url);
   }
 
+  /**
+   * 获取带认证的图片Blob URL (用于在<img>标签中显示)
+   */
+  async getAuthenticatedImageUrl(fileUrl: string | undefined): Promise<string> {
+    if (!fileUrl) {
+      return this.getAbsoluteFileUrl(undefined);
+    }
+
+    // 如果已经是 blob URL 或 data URL，直接返回
+    if (fileUrl.startsWith('blob:') || fileUrl.startsWith('data:')) {
+      return fileUrl;
+    }
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const absoluteUrl = this.getAbsoluteFileUrl(fileUrl);
+
+      const response = await fetch(absoluteUrl, {
+        method: 'GET',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+
+      if (!response.ok) {
+        console.error('Failed to load image:', response.status, response.statusText);
+        return this.getAbsoluteFileUrl(undefined); // 返回占位符
+      }
+
+      const blob = await response.blob();
+      return window.URL.createObjectURL(blob);
+    } catch (error) {
+      console.error('Error loading authenticated image:', error);
+      return this.getAbsoluteFileUrl(undefined); // 返回占位符
+    }
+  }
+
   async getFileDownloadUrl(fileId: string): Promise<string> {
     const token = localStorage.getItem('auth_token');
 
