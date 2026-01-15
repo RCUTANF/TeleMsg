@@ -774,6 +774,7 @@ function App() {
     setCurrentUser(user);
     try {
       await loadContacts(user.id);
+      await loadDiscussionSpaces(); // 加载所有讨论空间
       connectWebSocket(user.id);
     } catch (error) {
       console.error('Failed to load contacts after login:', error);

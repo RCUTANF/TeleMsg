@@ -14,7 +14,8 @@ interface LoginPageProps {
     name: string;
     username: string;
     avatar: string;
-    isAdmin: boolean
+    isAdmin: boolean;
+    role?: string;
   }) => void;
 }
 
@@ -69,7 +70,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         name: response.user.name || response.user.username,
         username: response.user.username,
         avatar: response.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${response.user.username}`,
-        isAdmin:response.user.isAdmin??false
+        isAdmin:response.user.isAdmin??false,
+        role: response.user.role
       });
 
       setSuccessMessage('登录成功！');
@@ -144,7 +146,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           name: response.user.name || registerName,
           username: response.user.username,
           avatar: response.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${registerUsername}`,
-          isAdmin:response.user.isAdmin??false
+          isAdmin:response.user.isAdmin??false,
+          role: response.user.role
         });
 
         setSuccessMessage('注册成功！');
